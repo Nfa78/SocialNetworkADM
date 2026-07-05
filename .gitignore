@@ -2,14 +2,39 @@
 __pycache__/
 *.py[cod]
 .pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
 .venv/
 
 # Local environment
 .env
+.env.*
+!.env.example
 
 # Local/generated artifacts
 .tmp/
+tmp/
+*.log
 .kagglehub/
 
-# Downloaded large datasets
-data/raw/sentiment140/
+# Downloaded/generated data
+data/raw/
+data/synthetic/
+
+# Local database volumes
+mongodb_data/
+neo4j_data/
+neo4j_logs/
+
+# Generated documentation exports
+docs/combined_exercises.html
+docs/combined_exercises.pdf
+
+# Editor, notebook, and OS noise
+.vscode/
+.idea/
+.ipynb_checkpoints/
+.DS_Store
+Thumbs.db
