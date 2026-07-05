@@ -1,0 +1,47 @@
+{
+  "$jsonSchema": {
+    "bsonType": "object",
+    "required": ["type", "actor_user_id", "target_type", "target_id", "created_at"],
+    "properties": {
+      "_id": {
+        "description": "Automatically generated MongoDB ObjectId or custom ID"
+      },
+      "type": {
+        "enum": [
+          "content_created",
+          "review_created",
+          "comment_created",
+          "like_created",
+          "like_removed",
+          "follow_created",
+          "follow_removed",
+          "checkin_created",
+          "view_created",
+          "share_created"
+        ],
+        "description": "Activity event type"
+      },
+      "actor_user_id": {
+        "bsonType": ["objectId", "string"],
+        "description": "User who performed the activity"
+      },
+      "target_type": {
+        "enum": ["user", "venue", "content"],
+        "description": "Type of target affected by the activity"
+      },
+      "target_id": {
+        "bsonType": ["objectId", "string"],
+        "description": "Target entity ID"
+      },
+      "created_at": {
+        "bsonType": "date",
+        "description": "Date when the activity happened"
+      },
+      "metadata": {
+        "bsonType": "object",
+        "description": "Optional source-specific or event-specific attributes"
+      }
+    },
+    "additionalProperties": true
+  }
+}

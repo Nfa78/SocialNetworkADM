@@ -1,0 +1,15 @@
+# Python
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.venv/
+
+# Local environment
+.env
+
+# Local/generated artifacts
+.tmp/
+.kagglehub/
+
+# Downloaded large datasets
+data/raw/sentiment140/

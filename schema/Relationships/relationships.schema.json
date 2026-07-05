@@ -1,0 +1,64 @@
+{
+  "$jsonSchema": {
+    "bsonType": "object",
+    "oneOf": [
+      {
+        "required": ["type", "source_user_id", "target_type", "target_id", "created_at"],
+        "properties": {
+          "_id": {
+            "description": "Automatically generated MongoDB ObjectId or custom ID"
+          },
+          "type": {
+            "enum": ["like"],
+            "description": "Relationship document type"
+          },
+          "source_user_id": {
+            "bsonType": ["objectId", "string"],
+            "description": "User who created the like"
+          },
+          "target_type": {
+            "enum": ["content"],
+            "description": "Type of liked target"
+          },
+          "target_id": {
+            "bsonType": ["objectId", "string"],
+            "description": "Liked content ID"
+          },
+          "created_at": {
+            "bsonType": "date",
+            "description": "Date when the like was created"
+          }
+        }
+      },
+      {
+        "required": ["type", "source_user_id", "target_type", "target_id", "created_at"],
+        "properties": {
+          "_id": {
+            "description": "Automatically generated MongoDB ObjectId or custom ID"
+          },
+          "type": {
+            "enum": ["follow"],
+            "description": "Relationship document type"
+          },
+          "source_user_id": {
+            "bsonType": ["objectId", "string"],
+            "description": "User who follows another entity"
+          },
+          "target_type": {
+            "enum": ["user", "venue"],
+            "description": "Type of followed target"
+          },
+          "target_id": {
+            "bsonType": ["objectId", "string"],
+            "description": "Followed user or venue ID"
+          },
+          "created_at": {
+            "bsonType": "date",
+            "description": "Date when the follow was created"
+          }
+        }
+      }
+    ],
+    "additionalProperties": true
+  }
+}

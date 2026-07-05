@@ -1,0 +1,103 @@
+services:
+  mongodb:
+    image: mongo:7
+    container_name: social-analytics-mongodb
+    restart: unless-stopped
+    ports:
+      - "${MONGO_PORT:-27017}:27017"
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: ${MONGO_INITDB_ROOT_USERNAME:-admin}
+      MONGO_INITDB_ROOT_PASSWORD: ${MONGO_INITDB_ROOT_PASSWORD:-admin_password}
+      MONGO_INITDB_DATABASE: ${MONGO_DATABASE:-social_analytics}
+    volumes:
+      - mongodb_data:/data/db
+    healthcheck:
+      test: ["CMD", "mongosh", "--quiet", "--eval", "db.adminCommand('ping').ok"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  neo4j:
+    image: neo4j:5-community
+    container_name: social-analytics-neo4j
+    restart: unless-stopped
+    ports:
+      - "${NEO4J_HTTP_PORT:-7474}:7474"
+      - "${NEO4J_BOLT_PORT:-7687}:7687"
+    environment:
+      NEO4J_AUTH: "${NEO4J_USER:-neo4j}/${NEO4J_PASSWORD:-neo4j_password}"
+      NEO4J_server_memory_heap_initial__size: 512m
+      NEO4J_server_memory_heap_max__size: 1G
+    volumes:
+      - neo4j_data:/data
+      - neo4j_logs:/logs
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "cypher-shell -u ${NEO4J_USER:-neo4j} -p ${NEO4J_PASSWORD:-neo4j_password} 'RETURN 1' || exit 1"
+        ]
+      interval: 10s
+      timeout: 10s
+      retries: 10
+
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: social-analytics-python
+    restart: unless-stopped
+    depends_on:
+      mongodb:
+        condition: service_healthy
+      neo4j:
+        condition: service_healthy
+    ports:
+      - "${APP_PORT:-8000}:8000"
+    environment:
+      MONGO_URI: "mongodb://${MONGO_INITDB_ROOT_USERNAME:-admin}:${MONGO_INITDB_ROOT_PASSWORD:-admin_password}@mongodb:27017/${MONGO_DATABASE:-social_analytics}?authSource=admin"
+      MONGO_DATABASE: ${MONGO_DATABASE:-social_analytics}
+      NEO4J_URI: "bolt://neo4j:7687"
+      NEO4J_USER: ${NEO4J_USER:-neo4j}
+      NEO4J_PASSWORD: ${NEO4J_PASSWORD:-neo4j_password}
+    volumes:
+      - ./data:/app/data
+      - ./schema:/app/schema
+      - ./src:/app/src
+    command: ["uvicorn", "src.main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
+
+  dashboard:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: social-analytics-dashboard
+    restart: unless-stopped
+    depends_on:
+      mongodb:
+        condition: service_healthy
+      neo4j:
+        condition: service_healthy
+    ports:
+      - "${DASHBOARD_PORT:-8501}:8501"
+    environment:
+      MONGO_URI: "mongodb://${MONGO_INITDB_ROOT_USERNAME:-admin}:${MONGO_INITDB_ROOT_PASSWORD:-admin_password}@mongodb:27017/${MONGO_DATABASE:-social_analytics}?authSource=admin"
+      MONGO_DATABASE: ${MONGO_DATABASE:-social_analytics}
+      NEO4J_URI: "bolt://neo4j:7687"
+      NEO4J_USER: ${NEO4J_USER:-neo4j}
+      NEO4J_PASSWORD: ${NEO4J_PASSWORD:-neo4j_password}
+    volumes:
+      - ./src:/app/src
+      - ./visualisation:/app/visualisation
+    command:
+      [
+        "streamlit",
+        "run",
+        "visualisation/streamlit_app.py",
+        "--server.address=0.0.0.0",
+        "--server.port=8501",
+      ]
+
+volumes:
+  mongodb_data:
+  neo4j_data:
+  neo4j_logs:

@@ -1,0 +1,57 @@
+{
+  "$jsonSchema": {
+    "bsonType": "object",
+    "required": ["username", "created_at"],
+    "properties": {
+      "_id": {
+        "description": "Automatically generated MongoDB ObjectId or custom ID"
+      },
+      "username": {
+        "bsonType": "string",
+        "description": "Unique username of the user"
+      },
+      "created_at": {
+        "bsonType": "date",
+        "description": "Date when the user was created"
+      },
+      "recent_interactions": {
+        "bsonType": "array",
+        "maxItems": 50,
+        "description": "Optional capped list of the user's most recent interactions",
+        "items": {
+          "bsonType": "object",
+          "required": ["type", "content_id", "created_at"],
+          "properties": {
+            "type": {
+              "enum": ["view"],
+              "description": "Interaction type"
+            },
+            "content_id": {
+              "bsonType": ["objectId", "string"],
+              "description": "Interacted content ID"
+            },
+            "created_at": {
+              "bsonType": "date",
+              "description": "Date when the interaction happened"
+            },
+            "source": {
+              "enum": ["feed", "profile", "search", "venue", "recommendation", "direct", "unknown"],
+              "description": "Where the interaction originated"
+            },
+            "session_id": {
+              "bsonType": "string",
+              "description": "Optional session identifier"
+            },
+            "duration_ms": {
+              "bsonType": "int",
+              "minimum": 0,
+              "description": "Optional interaction duration in milliseconds"
+            }
+          },
+          "additionalProperties": true
+        }
+      }
+    },
+    "additionalProperties": true
+  }
+}

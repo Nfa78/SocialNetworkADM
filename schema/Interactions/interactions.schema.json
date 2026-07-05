@@ -1,0 +1,45 @@
+{
+  "$jsonSchema": {
+    "bsonType": "object",
+    "oneOf": [
+      {
+        "required": ["type", "content_id", "created_at"],
+        "properties": {
+          "_id": {
+            "description": "Automatically generated MongoDB ObjectId or custom ID"
+          },
+          "type": {
+            "enum": ["view"],
+            "description": "Interaction document type"
+          },
+          "user_id": {
+            "bsonType": ["objectId", "string"],
+            "description": "Optional user who viewed the content"
+          },
+          "content_id": {
+            "bsonType": ["objectId", "string"],
+            "description": "Viewed content ID"
+          },
+          "created_at": {
+            "bsonType": "date",
+            "description": "Date when the interaction happened"
+          },
+          "source": {
+            "enum": ["feed", "profile", "search", "venue", "recommendation", "direct", "unknown"],
+            "description": "Where the interaction originated"
+          },
+          "session_id": {
+            "bsonType": "string",
+            "description": "Optional session identifier"
+          },
+          "duration_ms": {
+            "bsonType": "int",
+            "minimum": 0,
+            "description": "Optional viewing duration in milliseconds"
+          }
+        }
+      }
+    ],
+    "additionalProperties": true
+  }
+}

@@ -1,0 +1,1968 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Combined Exercises</title>
+  <style>
+    @page {
+      size: A4;
+      margin: 18mm 16mm;
+    }
+    body {
+      color: #1f2937;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif;
+      font-size: 11pt;
+      line-height: 1.5;
+    }
+    .cover {
+      break-after: page;
+      padding-top: 80px;
+    }
+    .cover h1 {
+      border: 0;
+      font-size: 30pt;
+      margin-bottom: 8px;
+    }
+    .document {
+      break-before: page;
+    }
+    .source-file {
+      color: #6b7280;
+      font-size: 9pt;
+      margin-bottom: 18px;
+    }
+    h1, h2, h3 {
+      color: #111827;
+      line-height: 1.25;
+    }
+    h1 {
+      border-bottom: 1px solid #d1d5db;
+      font-size: 22pt;
+      margin: 0 0 18px;
+      padding-bottom: 8px;
+    }
+    h2 {
+      border-bottom: 1px solid #e5e7eb;
+      font-size: 16pt;
+      margin: 24px 0 10px;
+      padding-bottom: 4px;
+    }
+    h3 {
+      font-size: 13pt;
+      margin: 18px 0 8px;
+    }
+    h4 {
+      color: #111827;
+      font-size: 11.5pt;
+      margin: 15px 0 6px;
+    }
+    p, ul, blockquote, pre {
+      margin: 0 0 11px;
+    }
+    ul {
+      padding-left: 24px;
+    }
+    blockquote {
+      border-left: 4px solid #cbd5e1;
+      color: #475569;
+      padding: 8px 12px;
+      background: #f8fafc;
+    }
+    code {
+      background: #f3f4f6;
+      border-radius: 4px;
+      font-family: Consolas, "Courier New", monospace;
+      font-size: 0.92em;
+      padding: 1px 4px;
+    }
+    pre {
+      background: #0f172a;
+      border-radius: 6px;
+      color: #e5e7eb;
+      font-family: Consolas, "Courier New", monospace;
+      font-size: 8.5pt;
+      line-height: 1.35;
+      overflow-wrap: anywhere;
+      padding: 12px;
+      white-space: pre-wrap;
+    }
+    pre code {
+      background: transparent;
+      color: inherit;
+      padding: 0;
+    }
+    hr {
+      border: 0;
+      border-top: 1px solid #e5e7eb;
+      margin: 20px 0;
+    }
+  </style>
+</head>
+<body>
+  <section class="cover">
+    <h1>Combined Exercise Markdown Files</h1>
+    <p>Generated from <code>./docs</code></p>
+    <ul>
+      <li>elk_query_practice_5_questions.md</li><li>influxdb_flux_query_practice_5_questions.md</li><li>NEO4J_MODELING_QUESTIONS.md</li><li>NEO4J_QUERY_QUESTIONS.md</li><li>QUERY_QUESTIONS.md</li>
+    </ul>
+  </section>
+  
+        <section class="document">
+          <div class="source-file">elk_query_practice_5_questions.md</div>
+          <h1>Elasticsearch / ELK Query Practice</h1>
+
+<p>This file contains <strong>5 practice questions</strong> and <strong>5 complete answers</strong> covering the most common Elasticsearch Query DSL patterns used in exam-style questions.</p>
+
+<blockquote>In the ELK stack, the actual search engine is <strong>Elasticsearch</strong>. So when we say “ELK queries”, we usually mean <strong>Elasticsearch Query DSL</strong>.</blockquote>
+
+<hr>
+
+<h2>Basic Mapping Used in These Questions</h2>
+
+<p>Assume we have this index:</p>
+
+<pre><code>products</code></pre>
+
+<p>And this mapping:</p>
+
+<pre><code>{
+  &quot;mappings&quot;: {
+    &quot;properties&quot;: {
+      &quot;name&quot;: {
+        &quot;type&quot;: &quot;text&quot;
+      },
+      &quot;description&quot;: {
+        &quot;type&quot;: &quot;text&quot;
+      },
+      &quot;category&quot;: {
+        &quot;type&quot;: &quot;keyword&quot;
+      },
+      &quot;brand&quot;: {
+        &quot;type&quot;: &quot;keyword&quot;
+      },
+      &quot;tags&quot;: {
+        &quot;type&quot;: &quot;keyword&quot;
+      },
+      &quot;price&quot;: {
+        &quot;type&quot;: &quot;float&quot;
+      },
+      &quot;rating&quot;: {
+        &quot;type&quot;: &quot;float&quot;
+      },
+      &quot;in_stock&quot;: {
+        &quot;type&quot;: &quot;boolean&quot;
+      },
+      &quot;created_at&quot;: {
+        &quot;type&quot;: &quot;date&quot;
+      }
+    }
+  }
+}</code></pre>
+
+<hr>
+
+<h2>Quick Cheat Sheet</h2>
+
+<p>| Need | Query / Feature |</p>
+<p>|---|---|</p>
+<p>| Search words in a <code>text</code> field | <code>match</code> |</p>
+<p>| Search exact phrase in a <code>text</code> field | <code>match_phrase</code> |</p>
+<p>| Search same text in many fields | <code>multi_match</code> |</p>
+<p>| Exact value on <code>keyword</code> or <code>boolean</code> | <code>term</code> |</p>
+<p>| Field is one of many exact values | <code>terms</code> |</p>
+<p>| Numeric/date comparison | <code>range</code> |</p>
+<p>| Field exists | <code>exists</code> |</p>
+<p>| Combine conditions | <code>bool</code> |</p>
+<p>| AND | <code>must</code> or <code>filter</code> |</p>
+<p>| OR | <code>should</code> + <code>minimum_should_match</code> |</p>
+<p>| NOT | <code>must_not</code> |</p>
+<p>| Projection / returned fields | <code>_source</code> |</p>
+<p>| Sorting | <code>sort</code> |</p>
+<p>| Limit results | <code>size</code> |</p>
+<p>| Pagination | <code>from</code> + <code>size</code> |</p>
+<p>| Grouping | <code>aggs</code> with <code>terms</code>, <code>date_histogram</code>, etc. |</p>
+
+<hr>
+
+<h2>Filter and Group Examples</h2>
+
+<h3>Filter example</h3>
+
+<p>Use <code>filter</code> inside a <code>bool</code> query when the condition is exact and does not need relevance scoring.</p>
+
+<p>This example returns products that are in stock, in the <code>electronics</code> category, and cost at most <code>900</code>.</p>
+
+<pre><code>GET products/_search
+{
+  &quot;query&quot;: {
+    &quot;bool&quot;: {
+      &quot;filter&quot;: [
+        {
+          &quot;term&quot;: {
+            &quot;in_stock&quot;: true
+          }
+        },
+        {
+          &quot;term&quot;: {
+            &quot;category&quot;: &quot;electronics&quot;
+          }
+        },
+        {
+          &quot;range&quot;: {
+            &quot;price&quot;: {
+              &quot;lte&quot;: 900
+            }
+          }
+        }
+      ]
+    }
+  }
+}</code></pre>
+
+<p>SQL-style idea:</p>
+
+<pre><code>WHERE in_stock = true
+  AND category = &#x27;electronics&#x27;
+  AND price &lt;= 900</code></pre>
+
+<h3>Group example</h3>
+
+<p>Use <code>aggs</code> for grouping. A <code>terms</code> aggregation is the most common way to group by an exact-value field.</p>
+
+<p>This example groups products by <code>category</code> and counts how many products are in each category.</p>
+
+<pre><code>GET products/_search
+{
+  &quot;size&quot;: 0,
+  &quot;aggs&quot;: {
+    &quot;products_by_category&quot;: {
+      &quot;terms&quot;: {
+        &quot;field&quot;: &quot;category&quot;
+      }
+    }
+  }
+}</code></pre>
+
+<p>SQL-style idea:</p>
+
+<pre><code>SELECT category, COUNT(*)
+FROM products
+GROUP BY category;</code></pre>
+
+<h3>Filter first, then group</h3>
+
+<p>Filtering and grouping are often used together. The <code>query</code> filters the documents first, then <code>aggs</code> groups only the matching documents.</p>
+
+<p>This example filters to in-stock electronics products, then groups them by <code>brand</code>.</p>
+
+<pre><code>GET products/_search
+{
+  &quot;size&quot;: 0,
+  &quot;query&quot;: {
+    &quot;bool&quot;: {
+      &quot;filter&quot;: [
+        {
+          &quot;term&quot;: {
+            &quot;in_stock&quot;: true
+          }
+        },
+        {
+          &quot;term&quot;: {
+            &quot;category&quot;: &quot;electronics&quot;
+          }
+        }
+      ]
+    }
+  },
+  &quot;aggs&quot;: {
+    &quot;products_by_brand&quot;: {
+      &quot;terms&quot;: {
+        &quot;field&quot;: &quot;brand&quot;
+      },
+      &quot;aggs&quot;: {
+        &quot;average_price&quot;: {
+          &quot;avg&quot;: {
+            &quot;field&quot;: &quot;price&quot;
+          }
+        }
+      }
+    }
+  }
+}</code></pre>
+
+<p>SQL-style idea:</p>
+
+<pre><code>SELECT brand, COUNT(*), AVG(price)
+FROM products
+WHERE in_stock = true
+  AND category = &#x27;electronics&#x27;
+GROUP BY brand;</code></pre>
+
+<hr>
+
+<h1>Question 1 — Basic Search with AND Conditions</h1>
+
+<p>Write a query to retrieve products where:</p>
+
+<p>1. <code>name</code> contains the word <code>laptop</code></p>
+<p>2. <code>category</code> is exactly <code>electronics</code></p>
+<p>3. <code>price</code> is less than or equal to <code>900</code></p>
+<p>4. <code>in_stock</code> is <code>true</code></p>
+
+<hr>
+
+<h2>Answer 1</h2>
+
+<pre><code>GET products/_search
+{
+  &quot;query&quot;: {
+    &quot;bool&quot;: {
+      &quot;must&quot;: [
+        {
+          &quot;match&quot;: {
+            &quot;name&quot;: &quot;laptop&quot;
+          }
+        },
+        {
+          &quot;term&quot;: {
+            &quot;category&quot;: &quot;electronics&quot;
+          }
+        },
+        {
+          &quot;range&quot;: {
+            &quot;price&quot;: {
+              &quot;lte&quot;: 900
+            }
+          }
+        },
+        {
+          &quot;term&quot;: {
+            &quot;in_stock&quot;: true
+          }
+        }
+      ]
+    }
+  }
+}</code></pre>
+
+<h3>Concepts used</h3>
+
+<ul>
+<li><code>match</code> because <code>name</code> is a <code>text</code> field.</li>
+<li><code>term</code> because <code>category</code> is a <code>keyword</code> field.</li>
+<li><code>range</code> because <code>price</code> is numeric.</li>
+<li><code>term</code> because <code>in_stock</code> is boolean.</li>
+<li><code>must</code> because all conditions must be true.</li>
+</ul>
+
+<hr>
+
+<h1>Question 2 — Phrase Search Across Multiple Fields + Projection + Sorting</h1>
+
+<p>Write a query to retrieve products where:</p>
+
+<p>1. the exact phrase <code>wireless headphones</code> appears in either <code>name</code> or <code>description</code></p>
+<p>2. <code>rating</code> is greater than or equal to <code>4.0</code></p>
+<p>3. return only <code>name</code>, <code>brand</code>, <code>price</code>, and <code>rating</code></p>
+<p>4. return only the first <code>10</code> results</p>
+<p>5. sort results by <code>price</code> ascending</p>
+
+<hr>
+
+<h2>Answer 2</h2>
+
+<pre><code>GET products/_search
+{
+  &quot;_source&quot;: [&quot;name&quot;, &quot;brand&quot;, &quot;price&quot;, &quot;rating&quot;],
+  &quot;size&quot;: 10,
+  &quot;sort&quot;: [
+    {
+      &quot;price&quot;: {
+        &quot;order&quot;: &quot;asc&quot;
+      }
+    }
+  ],
+  &quot;query&quot;: {
+    &quot;bool&quot;: {
+      &quot;must&quot;: [
+        {
+          &quot;multi_match&quot;: {
+            &quot;query&quot;: &quot;wireless headphones&quot;,
+            &quot;fields&quot;: [&quot;name&quot;, &quot;description&quot;],
+            &quot;type&quot;: &quot;phrase&quot;
+          }
+        },
+        {
+          &quot;range&quot;: {
+            &quot;rating&quot;: {
+              &quot;gte&quot;: 4.0
+            }
+          }
+        }
+      ]
+    }
+  }
+}</code></pre>
+
+<h3>Concepts used</h3>
+
+<ul>
+<li><code>multi_match</code> searches the same query in multiple fields.</li>
+<li><code>type: &quot;phrase&quot;</code> means exact phrase search.</li>
+<li><code>_source</code> is projection: it controls which fields are returned.</li>
+<li><code>size</code> limits the number of returned results.</li>
+<li><code>sort</code> orders the results.</li>
+</ul>
+
+<hr>
+
+<h1>Question 3 — OR, NOT, and Exists</h1>
+
+<p>Write a query to retrieve products where:</p>
+
+<p>1. <code>category</code> is exactly <code>electronics</code> OR <code>gaming</code></p>
+<p>2. <code>description</code> exists</p>
+<p>3. <code>brand</code> is NOT <code>Unknown</code></p>
+
+<hr>
+
+<h2>Answer 3</h2>
+
+<pre><code>GET products/_search
+{
+  &quot;query&quot;: {
+    &quot;bool&quot;: {
+      &quot;filter&quot;: [
+        {
+          &quot;bool&quot;: {
+            &quot;should&quot;: [
+              {
+                &quot;term&quot;: {
+                  &quot;category&quot;: &quot;electronics&quot;
+                }
+              },
+              {
+                &quot;term&quot;: {
+                  &quot;category&quot;: &quot;gaming&quot;
+                }
+              }
+            ],
+            &quot;minimum_should_match&quot;: 1
+          }
+        },
+        {
+          &quot;exists&quot;: {
+            &quot;field&quot;: &quot;description&quot;
+          }
+        }
+      ],
+      &quot;must_not&quot;: [
+        {
+          &quot;term&quot;: {
+            &quot;brand&quot;: &quot;Unknown&quot;
+          }
+        }
+      ]
+    }
+  }
+}</code></pre>
+
+<h3>Concepts used</h3>
+
+<ul>
+<li><code>should</code> represents OR.</li>
+<li><code>minimum_should_match: 1</code> means at least one OR condition must match.</li>
+<li><code>exists</code> checks whether the field is present.</li>
+<li><code>must_not</code> represents NOT.</li>
+<li><code>filter</code> is often used for exact conditions that do not need scoring.</li>
+</ul>
+
+<h3>Shorter alternative for the OR condition</h3>
+
+<p>Because both OR conditions are on the same field, we can also use <code>terms</code>:</p>
+
+<pre><code>{
+  &quot;terms&quot;: {
+    &quot;category&quot;: [&quot;electronics&quot;, &quot;gaming&quot;]
+  }
+}</code></pre>
+
+<hr>
+
+<h1>Question 4 — Grouping with Aggregations</h1>
+
+<p>Write a query to answer this question:</p>
+
+<blockquote>For products that are in stock, group them by <code>category</code> and calculate the average, minimum, and maximum <code>price</code> for each category.</blockquote>
+
+<p>Do not return actual product documents, only the aggregation result.</p>
+
+<hr>
+
+<h2>Answer 4</h2>
+
+<pre><code>GET products/_search
+{
+  &quot;size&quot;: 0,
+  &quot;query&quot;: {
+    &quot;term&quot;: {
+      &quot;in_stock&quot;: true
+    }
+  },
+  &quot;aggs&quot;: {
+    &quot;products_by_category&quot;: {
+      &quot;terms&quot;: {
+        &quot;field&quot;: &quot;category&quot;
+      },
+      &quot;aggs&quot;: {
+        &quot;average_price&quot;: {
+          &quot;avg&quot;: {
+            &quot;field&quot;: &quot;price&quot;
+          }
+        },
+        &quot;minimum_price&quot;: {
+          &quot;min&quot;: {
+            &quot;field&quot;: &quot;price&quot;
+          }
+        },
+        &quot;maximum_price&quot;: {
+          &quot;max&quot;: {
+            &quot;field&quot;: &quot;price&quot;
+          }
+        }
+      }
+    }
+  }
+}</code></pre>
+
+<h3>Concepts used</h3>
+
+<ul>
+<li><code>size: 0</code> means do not return documents, only aggregation results.</li>
+<li><code>aggs</code> is used for grouping/statistics.</li>
+<li><code>terms</code> aggregation groups by exact values, similar to SQL <code>GROUP BY</code>.</li>
+<li><code>avg</code>, <code>min</code>, and <code>max</code> are metric aggregations.</li>
+<li><code>doc_count</code> in the result is similar to <code>COUNT(*)</code>.</li>
+</ul>
+
+<hr>
+
+<h1>Question 5 — Date Range + Date Histogram + Pagination</h1>
+
+<p>Write a query to retrieve products where:</p>
+
+<p>1. <code>created_at</code> is from <code>2026-01-01</code> onward</p>
+<p>2. <code>rating</code> is greater than or equal to <code>4.0</code></p>
+<p>3. return only <code>name</code>, <code>category</code>, <code>rating</code>, and <code>created_at</code></p>
+<p>4. return page 2, assuming each page has 10 results</p>
+<p>5. sort newest products first</p>
+<p>6. also group matching products by month using <code>created_at</code></p>
+
+<hr>
+
+<h2>Answer 5</h2>
+
+<pre><code>GET products/_search
+{
+  &quot;_source&quot;: [&quot;name&quot;, &quot;category&quot;, &quot;rating&quot;, &quot;created_at&quot;],
+  &quot;from&quot;: 10,
+  &quot;size&quot;: 10,
+  &quot;sort&quot;: [
+    {
+      &quot;created_at&quot;: {
+        &quot;order&quot;: &quot;desc&quot;
+      }
+    }
+  ],
+  &quot;query&quot;: {
+    &quot;bool&quot;: {
+      &quot;filter&quot;: [
+        {
+          &quot;range&quot;: {
+            &quot;created_at&quot;: {
+              &quot;gte&quot;: &quot;2026-01-01&quot;
+            }
+          }
+        },
+        {
+          &quot;range&quot;: {
+            &quot;rating&quot;: {
+              &quot;gte&quot;: 4.0
+            }
+          }
+        }
+      ]
+    }
+  },
+  &quot;aggs&quot;: {
+    &quot;products_per_month&quot;: {
+      &quot;date_histogram&quot;: {
+        &quot;field&quot;: &quot;created_at&quot;,
+        &quot;calendar_interval&quot;: &quot;month&quot;
+      }
+    }
+  }
+}</code></pre>
+
+<h3>Concepts used</h3>
+
+<ul>
+<li>Date comparisons also use <code>range</code>.</li>
+<li>Date values are strings, so they use quotes.</li>
+<li><code>from: 10</code> and <code>size: 10</code> means page 2 if page 1 starts at <code>from: 0</code>.</li>
+<li><code>_source</code> is projection.</li>
+<li><code>sort</code> orders by date descending.</li>
+<li><code>date_histogram</code> groups documents by time intervals.</li>
+</ul>
+
+<hr>
+
+<h1>Final Syntax Reminders</h1>
+
+<h2>Quotes</h2>
+
+<pre><code>Keys                 -&gt; quoted
+String values         -&gt; quoted
+Numbers               -&gt; not quoted
+Booleans true/false   -&gt; not quoted
+null                  -&gt; not quoted
+Arrays []             -&gt; not quoted as a whole
+Objects {}            -&gt; not quoted as a whole</code></pre>
+
+<p>Examples:</p>
+
+<pre><code>{
+  &quot;term&quot;: {
+    &quot;category&quot;: &quot;electronics&quot;
+  }
+}</code></pre>
+
+<pre><code>{
+  &quot;range&quot;: {
+    &quot;price&quot;: {
+      &quot;lte&quot;: 900
+    }
+  }
+}</code></pre>
+
+<pre><code>{
+  &quot;term&quot;: {
+    &quot;in_stock&quot;: true
+  }
+}</code></pre>
+
+<hr>
+
+<h1>Main Template to Memorize</h1>
+
+<pre><code>GET index_name/_search
+{
+  &quot;query&quot;: {
+    &quot;bool&quot;: {
+      &quot;must&quot;: [
+        {
+          &quot;QUERY_TYPE&quot;: {
+            &quot;field&quot;: &quot;value&quot;
+          }
+        }
+      ],
+      &quot;filter&quot;: [
+        {
+          &quot;QUERY_TYPE&quot;: {
+            &quot;field&quot;: &quot;value&quot;
+          }
+        }
+      ],
+      &quot;should&quot;: [
+        {
+          &quot;QUERY_TYPE&quot;: {
+            &quot;field&quot;: &quot;value&quot;
+          }
+        }
+      ],
+      &quot;must_not&quot;: [
+        {
+          &quot;QUERY_TYPE&quot;: {
+            &quot;field&quot;: &quot;value&quot;
+          }
+        }
+      ]
+    }
+  }
+}</code></pre>
+        </section>
+        
+        <section class="document">
+          <div class="source-file">influxdb_flux_query_practice_5_questions.md</div>
+          <h1>InfluxDB Flux Query Practice</h1>
+
+<p>This file contains <strong>5 practice questions</strong> and <strong>5 complete answers</strong> covering the most common InfluxDB <strong>Flux</strong> query patterns used in exam-style questions.</p>
+
+<p>The focus is on fast learning: each question has a complete query, explanation, and common syntax notes.</p>
+
+<hr>
+
+<h2>Basic Data Model Used in These Questions</h2>
+
+<p>Assume the data is stored in InfluxDB with:</p>
+
+<pre><code>bucket: IoT
+measurement: home
+fields: temp, hum
+tag: room</code></pre>
+
+<p>Example data conceptually looks like this:</p>
+
+<p>| _time | _measurement | room | _field | _value |</p>
+<p>|---|---|---|---|---|</p>
+<p>| 2026-06-21T10:00:00Z | home | kitchen | temp | 24.5 |</p>
+<p>| 2026-06-21T10:00:00Z | home | kitchen | hum | 55 |</p>
+<p>| 2026-06-21T10:00:00Z | home | bedroom | temp | 22.1 |</p>
+<p>| 2026-06-21T10:00:00Z | home | bedroom | hum | 60 |</p>
+
+<hr>
+
+<h2>Flux Mental Model</h2>
+
+<p>Most Flux queries follow this pipeline:</p>
+
+<pre><code>from(bucket: &quot;bucket_name&quot;)
+  |&gt; range(start: -time)
+  |&gt; filter(fn: (r) =&gt; condition)
+  |&gt; transformation()</code></pre>
+
+<p>Important built-in columns:</p>
+
+<p>| Column | Meaning |</p>
+<p>|---|---|</p>
+<p>| <code>_time</code> | timestamp of the point |</p>
+<p>| <code>_measurement</code> | measurement name, like a table name |</p>
+<p>| <code>_field</code> | field name, for example <code>temp</code> or <code>hum</code> |</p>
+<p>| <code>_value</code> | actual numeric/string value of the field |</p>
+<p>| <code>room</code> | tag column in this example |</p>
+
+<hr>
+
+<h2>Quick Cheat Sheet</h2>
+
+<p>| Need | Flux function / syntax |</p>
+<p>|---|---|</p>
+<p>| Select bucket | <code>from(bucket: &quot;IoT&quot;)</code> |</p>
+<p>| Select time range | <code>range(start: -2h)</code> |</p>
+<p>| Filter measurement | <code>filter(fn: (r) =&gt; r._measurement == &quot;home&quot;)</code> |</p>
+<p>| Filter field | <code>filter(fn: (r) =&gt; r._field == &quot;temp&quot;)</code> |</p>
+<p>| Filter tag | <code>filter(fn: (r) =&gt; r.room == &quot;kitchen&quot;)</code> |</p>
+<p>| Filter value | <code>filter(fn: (r) =&gt; r._value &gt; 25.0)</code> |</p>
+<p>| Average | <code>mean()</code> |</p>
+<p>| Minimum | <code>min()</code> |</p>
+<p>| Maximum | <code>max()</code> |</p>
+<p>| Count | <code>count()</code> |</p>
+<p>| Latest value | <code>last()</code> |</p>
+<p>| Group by tag | <code>group(columns: [&quot;room&quot;])</code> |</p>
+<p>| Windowed aggregation | <code>aggregateWindow(every: 10m, fn: mean)</code> |</p>
+<p>| Sort | <code>sort(columns: [&quot;_time&quot;], desc: true)</code> |</p>
+<p>| Limit rows | <code>limit(n: 10)</code> |</p>
+<p>| Select columns | <code>keep(columns: [&quot;_time&quot;, &quot;room&quot;, &quot;_value&quot;])</code> |</p>
+<p>| Convert fields into columns | <code>pivot(...)</code> |</p>
+
+<hr>
+
+<h1>Question 1 — Average Temperature Per Room Over the Last 2 Hours</h1>
+
+<p>Write a Flux query to compute the <strong>average temperature per room</strong> over the last <strong>2 hours</strong>.</p>
+
+<p>Use:</p>
+
+<pre><code>bucket: IoT
+measurement: home
+field: temp
+tag: room</code></pre>
+
+<hr>
+
+<h2>Answer 1</h2>
+
+<pre><code>from(bucket: &quot;IoT&quot;)
+  |&gt; range(start: -2h)
+  |&gt; filter(fn: (r) =&gt; r._measurement == &quot;home&quot;)
+  |&gt; filter(fn: (r) =&gt; r._field == &quot;temp&quot;)
+  |&gt; group(columns: [&quot;room&quot;])
+  |&gt; mean()</code></pre>
+
+<h3>Explanation</h3>
+
+<pre><code>from(bucket: &quot;IoT&quot;)</code></pre>
+
+<p>Selects the bucket.</p>
+
+<pre><code>range(start: -2h)</code></pre>
+
+<p>Keeps only data from the last 2 hours.</p>
+
+<pre><code>filter(fn: (r) =&gt; r._measurement == &quot;home&quot;)</code></pre>
+
+<p>Keeps only rows from the <code>home</code> measurement.</p>
+
+<pre><code>filter(fn: (r) =&gt; r._field == &quot;temp&quot;)</code></pre>
+
+<p>Keeps only temperature values.</p>
+
+<pre><code>group(columns: [&quot;room&quot;])</code></pre>
+
+<p>Groups data by room.</p>
+
+<pre><code>mean()</code></pre>
+
+<p>Computes the average <code>_value</code> for each room.</p>
+
+<h3>SQL-like idea</h3>
+
+<pre><code>SELECT room, AVG(temp)
+FROM home
+WHERE time &gt;= now() - 2 hours
+GROUP BY room;</code></pre>
+
+<hr>
+
+<h1>Question 2 — Average Temperature Every 10 Minutes Per Room</h1>
+
+<p>Write a Flux query to compute the <strong>average temperature every 10 minutes per room</strong> over the last <strong>2 hours</strong>.</p>
+
+<p>This is different from Question 1 because now we want a time series of averages, not one average per room.</p>
+
+<hr>
+
+<h2>Answer 2</h2>
+
+<pre><code>from(bucket: &quot;IoT&quot;)
+  |&gt; range(start: -2h)
+  |&gt; filter(fn: (r) =&gt; r._measurement == &quot;home&quot;)
+  |&gt; filter(fn: (r) =&gt; r._field == &quot;temp&quot;)
+  |&gt; group(columns: [&quot;room&quot;])
+  |&gt; aggregateWindow(every: 10m, fn: mean, createEmpty: false)</code></pre>
+
+<h3>Explanation</h3>
+
+<pre><code>group(columns: [&quot;room&quot;])</code></pre>
+
+<p>Keeps each room separate.</p>
+
+<pre><code>aggregateWindow(every: 10m, fn: mean, createEmpty: false)</code></pre>
+
+<p>Divides time into 10-minute windows and calculates the average temperature in each window.</p>
+
+<p><code>createEmpty: false</code> avoids returning empty time windows with no data.</p>
+
+<h3>When to use <code>mean()</code> vs <code>aggregateWindow()</code></h3>
+
+<p>Use this:</p>
+
+<pre><code>mean()</code></pre>
+
+<p>when you want <strong>one final average</strong>.</p>
+
+<p>Use this:</p>
+
+<pre><code>aggregateWindow(every: 10m, fn: mean)</code></pre>
+
+<p>when you want <strong>averages over repeated time windows</strong>.</p>
+
+<hr>
+
+<h1>Question 3 — Latest Humidity Value in One Room</h1>
+
+<p>Write a Flux query to retrieve the <strong>latest humidity value</strong> measured in the <code>kitchen</code> over the last <strong>24 hours</strong>.</p>
+
+<p>Return only:</p>
+
+<pre><code>_time, room, _field, _value</code></pre>
+
+<hr>
+
+<h2>Answer 3</h2>
+
+<pre><code>from(bucket: &quot;IoT&quot;)
+  |&gt; range(start: -24h)
+  |&gt; filter(fn: (r) =&gt; r._measurement == &quot;home&quot;)
+  |&gt; filter(fn: (r) =&gt; r._field == &quot;hum&quot;)
+  |&gt; filter(fn: (r) =&gt; r.room == &quot;kitchen&quot;)
+  |&gt; last()
+  |&gt; keep(columns: [&quot;_time&quot;, &quot;room&quot;, &quot;_field&quot;, &quot;_value&quot;])</code></pre>
+
+<h3>Explanation</h3>
+
+<pre><code>filter(fn: (r) =&gt; r._field == &quot;hum&quot;)</code></pre>
+
+<p>Selects humidity readings.</p>
+
+<pre><code>filter(fn: (r) =&gt; r.room == &quot;kitchen&quot;)</code></pre>
+
+<p>Selects only the kitchen. <code>room</code> is a tag.</p>
+
+<pre><code>last()</code></pre>
+
+<p>Returns the latest point in the selected time range.</p>
+
+<pre><code>keep(columns: [&quot;_time&quot;, &quot;room&quot;, &quot;_field&quot;, &quot;_value&quot;])</code></pre>
+
+<p>Acts like projection: it keeps only the requested columns.</p>
+
+<h3>SQL-like idea</h3>
+
+<pre><code>SELECT time, room, hum
+FROM home
+WHERE room = &#x27;kitchen&#x27;
+ORDER BY time DESC
+LIMIT 1;</code></pre>
+
+<hr>
+
+<h1>Question 4 — Retrieve Temperature and Humidity Together Using Pivot</h1>
+
+<p>Write a Flux query to retrieve both <code>temp</code> and <code>hum</code> for the <code>bedroom</code> over the last <strong>1 hour</strong>, and convert them into separate columns.</p>
+
+<p>The output should look conceptually like:</p>
+
+<p>| _time | room | temp | hum |</p>
+<p>|---|---|---|---|</p>
+<p>| 10:00 | bedroom | 22.4 | 58 |</p>
+<p>| 10:05 | bedroom | 22.5 | 57 |</p>
+
+<hr>
+
+<h2>Answer 4</h2>
+
+<pre><code>from(bucket: &quot;IoT&quot;)
+  |&gt; range(start: -1h)
+  |&gt; filter(fn: (r) =&gt; r._measurement == &quot;home&quot;)
+  |&gt; filter(fn: (r) =&gt; r.room == &quot;bedroom&quot;)
+  |&gt; filter(fn: (r) =&gt; r._field == &quot;temp&quot; or r._field == &quot;hum&quot;)
+  |&gt; pivot(rowKey: [&quot;_time&quot;], columnKey: [&quot;_field&quot;], valueColumn: &quot;_value&quot;)
+  |&gt; keep(columns: [&quot;_time&quot;, &quot;room&quot;, &quot;temp&quot;, &quot;hum&quot;])</code></pre>
+
+<h3>Explanation</h3>
+
+<p>In InfluxDB, fields are usually stored vertically:</p>
+
+<p>| _time | _field | _value |</p>
+<p>|---|---|---|</p>
+<p>| 10:00 | temp | 22.4 |</p>
+<p>| 10:00 | hum | 58 |</p>
+
+<p><code>pivot()</code> converts this into a wider table:</p>
+
+<p>| _time | temp | hum |</p>
+<p>|---|---|---|</p>
+<p>| 10:00 | 22.4 | 58 |</p>
+
+<p>The key part is:</p>
+
+<pre><code>pivot(rowKey: [&quot;_time&quot;], columnKey: [&quot;_field&quot;], valueColumn: &quot;_value&quot;)</code></pre>
+
+<p>Meaning:</p>
+
+<pre><code>Each time becomes a row.
+Each field name becomes a column.
+The value comes from _value.</code></pre>
+
+<hr>
+
+<h1>Question 5 — Count High Temperature Readings Per Room</h1>
+
+<p>Write a Flux query to count how many temperature readings were greater than <code>28.0</code> in each room over the last <strong>24 hours</strong>.</p>
+
+<p>Use:</p>
+
+<pre><code>measurement: home
+field: temp
+threshold: _value &gt; 28.0
+grouping tag: room</code></pre>
+
+<hr>
+
+<h2>Answer 5</h2>
+
+<pre><code>from(bucket: &quot;IoT&quot;)
+  |&gt; range(start: -24h)
+  |&gt; filter(fn: (r) =&gt; r._measurement == &quot;home&quot;)
+  |&gt; filter(fn: (r) =&gt; r._field == &quot;temp&quot;)
+  |&gt; filter(fn: (r) =&gt; r._value &gt; 28.0)
+  |&gt; group(columns: [&quot;room&quot;])
+  |&gt; count()</code></pre>
+
+<h3>Explanation</h3>
+
+<pre><code>filter(fn: (r) =&gt; r._value &gt; 28.0)</code></pre>
+
+<p>Keeps only temperature readings above 28.0.</p>
+
+<pre><code>group(columns: [&quot;room&quot;])</code></pre>
+
+<p>Separates the data by room.</p>
+
+<pre><code>count()</code></pre>
+
+<p>Counts how many rows are left in each room group.</p>
+
+<h3>SQL-like idea</h3>
+
+<pre><code>SELECT room, COUNT(*)
+FROM home
+WHERE temp &gt; 28.0
+AND time &gt;= now() - 24 hours
+GROUP BY room;</code></pre>
+
+<hr>
+
+<h1>Common Flux Syntax Rules</h1>
+
+<h2>1. Strings use quotes</h2>
+
+<pre><code>r._measurement == &quot;home&quot;
+r._field == &quot;temp&quot;
+r.room == &quot;kitchen&quot;</code></pre>
+
+<h2>2. Durations do not use quotes</h2>
+
+<p>Correct:</p>
+
+<pre><code>range(start: -2h)</code></pre>
+
+<p>Wrong:</p>
+
+<pre><code>range(start: &quot;-2h&quot;)</code></pre>
+
+<h2>3. Numbers do not use quotes</h2>
+
+<p>Correct:</p>
+
+<pre><code>r._value &gt; 28.0</code></pre>
+
+<p>Wrong:</p>
+
+<pre><code>r._value &gt; &quot;28.0&quot;</code></pre>
+
+<h2>4. Booleans do not use quotes</h2>
+
+<pre><code>true
+false</code></pre>
+
+<h2>5. Every pipeline step uses <code>|&gt;</code></h2>
+
+<pre><code>from(bucket: &quot;IoT&quot;)
+  |&gt; range(start: -2h)
+  |&gt; filter(fn: (r) =&gt; r._field == &quot;temp&quot;)
+  |&gt; mean()</code></pre>
+
+<h2>6. Filter functions usually look like this</h2>
+
+<pre><code>filter(fn: (r) =&gt; r.columnName == &quot;value&quot;)</code></pre>
+
+<p>Examples:</p>
+
+<pre><code>filter(fn: (r) =&gt; r._measurement == &quot;home&quot;)
+filter(fn: (r) =&gt; r._field == &quot;temp&quot;)
+filter(fn: (r) =&gt; r.room == &quot;kitchen&quot;)
+filter(fn: (r) =&gt; r._value &gt; 25.0)</code></pre>
+
+<hr>
+
+<h1>Most Important Template to Memorize</h1>
+
+<pre><code>from(bucket: &quot;BUCKET_NAME&quot;)
+  |&gt; range(start: -TIME_RANGE)
+  |&gt; filter(fn: (r) =&gt; r._measurement == &quot;MEASUREMENT_NAME&quot;)
+  |&gt; filter(fn: (r) =&gt; r._field == &quot;FIELD_NAME&quot;)
+  |&gt; filter(fn: (r) =&gt; r.TAG_NAME == &quot;TAG_VALUE&quot;)
+  |&gt; group(columns: [&quot;TAG_NAME&quot;])
+  |&gt; AGGREGATION_FUNCTION()</code></pre>
+
+<p>Example:</p>
+
+<pre><code>from(bucket: &quot;IoT&quot;)
+  |&gt; range(start: -2h)
+  |&gt; filter(fn: (r) =&gt; r._measurement == &quot;home&quot;)
+  |&gt; filter(fn: (r) =&gt; r._field == &quot;temp&quot;)
+  |&gt; group(columns: [&quot;room&quot;])
+  |&gt; mean()</code></pre>
+
+<hr>
+
+<h1>Final Exam Tips</h1>
+
+<p>1. Always start with <code>from(bucket: &quot;...&quot;)</code>.</p>
+<p>2. Always add a <code>range(...)</code>; Flux usually requires a time range for queries.</p>
+<p>3. Filter <code>_measurement</code> to select the measurement.</p>
+<p>4. Filter <code>_field</code> to select the field.</p>
+<p>5. Filter tags directly, like <code>r.room == &quot;kitchen&quot;</code>.</p>
+<p>6. Use <code>_value</code> for numeric comparisons.</p>
+<p>7. Use <code>group(columns: [...])</code> before aggregation if the question asks “per room”, “per device”, or “per host”.</p>
+<p>8. Use <code>aggregateWindow(...)</code> when the question says “every 5 minutes”, “per hour”, “daily average”, etc.</p>
+<p>9. Use <code>pivot(...)</code> when the question wants multiple fields as columns.</p>
+<p>10. Use <code>keep(...)</code> when the question asks to return only specific columns.</p>
+
+        </section>
+        
+        <section class="document">
+          <div class="source-file">NEO4J_MODELING_QUESTIONS.md</div>
+          <h1>Neo4j Graph Modeling Questions</h1>
+
+<p>These exercises focus on designing a Neo4j graph schema from requirements.</p>
+<p>For each case, identify:</p>
+<ul>
+<li>node labels and properties</li>
+<li>relationship types and directions</li>
+<li>relationship properties if needed</li>
+</ul>
+
+<h2>Question 1 — Employee training platform</h2>
+
+<p>A company runs an internal training platform where employees can enroll in courses.</p>
+<p>The platform must support these queries efficiently:</p>
+<ul>
+<li>Which courses has a given employee completed, and what score did they get?</li>
+<li>Which employees are currently enrolled in a given course?</li>
+<li>Which instructor teaches a given course?</li>
+<li>Which employees share at least one completed course?</li>
+</ul>
+
+<p>Requirements:</p>
+<ul>
+<li>Each employee has a unique identifier, name, and department</li>
+<li>Each course has a unique identifier, title, duration in hours, and difficulty level</li>
+<li>Each instructor has a name and an expertise field</li>
+<li>Track the date when an employee enrolls in a course</li>
+<li>Track the date and score when an employee completes a course</li>
+<li>A course is taught by one instructor</li>
+</ul>
+
+<p>Design the Neo4j graph schema for this platform.</p>
+
+<h2>Question 2 — Music streaming platform</h2>
+
+<p>A music streaming service wants to model listeners, songs, and playlists.</p>
+<p>The platform must support these queries efficiently:</p>
+<ul>
+<li>Which songs are in a given playlist?</li>
+<li>Which playlists contain a given song?</li>
+<li>Which listeners follow a given artist?</li>
+<li>Which listeners have liked the same songs?</li>
+</ul>
+
+<p>Requirements:</p>
+<ul>
+<li>Each listener has a unique id, username, and country</li>
+<li>Each artist has a unique id, name, and genre</li>
+<li>Each song has a unique id, title, duration, and release year</li>
+<li>Each playlist has a unique id, title, and privacy status</li>
+<li>Track when a listener adds a song to a playlist</li>
+<li>Track when a listener likes a song</li>
+</ul>
+
+<p>Design the Neo4j graph schema for this platform.</p>
+
+<h2>Question 3 — Hospital appointment system</h2>
+
+<p>A hospital wants to manage patients, doctors, appointments, and prescriptions.</p>
+<p>The platform must support these queries efficiently:</p>
+<ul>
+<li>Which appointments does a given patient have?</li>
+<li>Which doctor is assigned to a given appointment?</li>
+<li>Which prescriptions were written during a given appointment?</li>
+<li>Which patients have visited the same doctor?</li>
+</ul>
+
+<p>Requirements:</p>
+<ul>
+<li>Each patient has a unique id, name, age, and contact information</li>
+<li>Each doctor has a unique id, name, and specialty</li>
+<li>Each appointment has a unique id, date, time, and status</li>
+<li>Each prescription has a unique id, medication name, dosage, and duration</li>
+<li>Track the status of the appointment</li>
+<li>Track the prescription date</li>
+</ul>
+
+<p>Design the Neo4j graph schema for this platform.</p>
+
+<h2>Question 4 — Online learning community</h2>
+
+<p>An online learning community wants to model students, posts, comments, and tags.</p>
+<p>The platform must support these queries efficiently:</p>
+<ul>
+<li>Which posts did a given student create?</li>
+<li>Which comments belong to a given post?</li>
+<li>Which students reacted to the same post?</li>
+<li>Which posts share at least one tag?</li>
+</ul>
+
+<p>Requirements:</p>
+<ul>
+<li>Each student has a unique id, name, and city</li>
+<li>Each post has a unique id, title, body, and creation time</li>
+<li>Each comment has a unique id, text, and creation time</li>
+<li>Each tag is identified by a name</li>
+<li>Track the type of reaction a student gives to a post</li>
+<li>A comment belongs to exactly one post</li>
+</ul>
+
+<p>Design the Neo4j graph schema for this platform.</p>
+
+<h2>Question 5 — Food delivery application</h2>
+
+<p>A food delivery application wants to manage customers, restaurants, orders, and menu items.</p>
+<p>The platform must support these queries efficiently:</p>
+<ul>
+<li>Which restaurants does a customer order from most often?</li>
+<li>Which menu items belong to a given restaurant?</li>
+<li>Which orders contain a given menu item?</li>
+<li>Which customers have ordered from the same restaurant?</li>
+</ul>
+
+<p>Requirements:</p>
+<ul>
+<li>Each customer has a unique id, name, and city</li>
+<li>Each restaurant has a unique id, name, category, and rating</li>
+<li>Each order has a unique id, order date, status, and total amount</li>
+<li>Each menu item has a unique id, name, price, and availability</li>
+<li>Track the quantity of each item in an order</li>
+<li>A restaurant offers many menu items</li>
+</ul>
+
+<p>Design the Neo4j graph schema for this platform.</p>
+
+        </section>
+        
+        <section class="document">
+          <div class="source-file">NEO4J_QUERY_QUESTIONS.md</div>
+          <h1>Neo4j Query Questions</h1>
+
+<p>These questions are based on the social network analytics graph:</p>
+<ul>
+<li><code>(:User)</code></li>
+<li><code>(:Content)</code></li>
+<li><code>(:Venue)</code></li>
+<li><code>[:FOLLOWS]</code></li>
+<li><code>[:LIKED]</code></li>
+<li><code>[:SIMILAR_TO]</code></li>
+</ul>
+
+<h2>Question 1 — User follow network</h2>
+
+<p>Given that users are connected through <code>FOLLOWS</code> relationships:</p>
+
+<ul>
+<li>write a Cypher query that returns the users followed by a given user</li>
+<li>include the followed user id and the relationship creation time</li>
+<li>sort results by the follow time in descending order</li>
+</ul>
+
+<h3>Answer</h3>
+
+<pre><code>MATCH (u:User {id: &quot;user_001&quot;})-[f:FOLLOWS]-&gt;(u2:User)
+RETURN u2.id AS followed_user_id, u2.username AS followed_username, f.created_at AS follow_time
+ORDER BY follow_time DESC</code></pre>
+
+<h2>Question 2 — Most liked posts</h2>
+
+<p>Given that users like content through <code>LIKED</code> relationships:</p>
+
+<ul>
+<li>write a Cypher query that finds the top 10 posts with the highest number of incoming <code>LIKED</code> relationships</li>
+<li>return the post id and number of likes</li>
+<li>sort by likes in descending order</li>
+</ul>
+
+<h3>Answer</h3>
+
+<pre><code>MATCH (:User)-[:LIKED]-&gt;(p:Post)
+WITH p, count(*) AS total_likes
+RETURN p.id AS post_id, total_likes
+ORDER BY total_likes DESC
+LIMIT 10</code></pre>
+
+<h2>Question 3 — Similar content recommendations</h2>
+
+<p>Given that some posts are connected with <code>SIMILAR_TO</code>:</p>
+
+<ul>
+<li>write a Cypher query that finds posts similar to a given post</li>
+<li>return the similar post id, similarity score, and shared hashtags if available</li>
+<li>only keep results with a similarity score greater than or equal to <code>0.5</code></li>
+</ul>
+
+<h3>Answer</h3>
+
+<pre><code>MATCH (p:Post {id: &quot;content_2050&quot;})&lt;-[r:SIMILAR_TO]-(p2:Post)
+WHERE r.score &gt;= 0.5
+RETURN p2.id AS similar_post_id, r.score AS similarity_score, r.shared_hashtags AS shared_hashtags
+ORDER BY similarity_score DESC</code></pre>
+
+<h2>Question 4 — Taste-based user recommendation</h2>
+
+<p>Given a user and the content they have liked:</p>
+
+<ul>
+<li>write a Cypher query that finds other users who liked the same content</li>
+<li>count how many liked posts they have in common</li>
+<li>return the user ids and the overlap count</li>
+<li>sort by overlap count in descending order</li>
+</ul>
+
+<h3>Answer</h3>
+
+<pre><code>MATCH (u1:User {id: &quot;user_004&quot;})-[:LIKED]-&gt;(c:Content)&lt;-[:LIKED]-(u2:User)
+WHERE u1 &lt;&gt; u2
+WITH u1.id AS main_user, u2.id AS similar_user, count(DISTINCT c) AS overlap_count
+RETURN main_user, similar_user, overlap_count
+ORDER BY overlap_count DESC
+LIMIT 10</code></pre>
+
+<h2>Question 5 — Venue popularity</h2>
+
+<p>Given venue nodes in the graph:</p>
+
+<ul>
+<li>write a Cypher query that finds venues followed by the most users</li>
+<li>return the venue id and the number of followers</li>
+<li>sort by follower count in descending order</li>
+</ul>
+
+<h3>Answer</h3>
+
+<pre><code>MATCH (:User)-[:FOLLOWS]-&gt;(v:Venue)
+WITH v, count(*) AS follower_count
+RETURN v.id AS venue_id, v.name AS venue_name, follower_count
+ORDER BY follower_count DESC
+LIMIT 5</code></pre>
+
+        </section>
+        
+        <section class="document">
+          <div class="source-file">QUERY_QUESTIONS.md</div>
+          <h1>Query Questions</h1>
+
+<p>These questions are based on the social network analytics database:</p>
+<ul>
+<li><code>users</code></li>
+<li><code>content</code></li>
+<li><code>interactions</code></li>
+<li><code>relationships</code></li>
+<li><code>venues</code></li>
+</ul>
+
+<h2>MongoDB Filter and Group Examples</h2>
+
+<h3>Simple filter with <code>find</code></h3>
+
+<p>Use <code>find</code> when you only need to filter and return matching documents.</p>
+
+<p>This example returns food posts with at least <code>20</code> likes and only shows selected fields.</p>
+
+<pre><code>db.content.find(
+  {
+    type: &quot;post&quot;,
+    style: &quot;food&quot;,
+    &quot;metrics.like_count&quot;: { $gte: 20 }
+  },
+  {
+    _id: 1,
+    author_id: 1,
+    style: 1,
+    hashtags: 1,
+    &quot;metrics.like_count&quot;: 1
+  }
+).sort({
+  &quot;metrics.like_count&quot;: -1
+}).limit(10)</code></pre>
+
+<p>SQL-style idea:</p>
+
+<pre><code>SELECT _id, author_id, style, hashtags, metrics.like_count
+FROM content
+WHERE type = &#x27;post&#x27;
+  AND style = &#x27;food&#x27;
+  AND metrics.like_count &gt;= 20
+ORDER BY metrics.like_count DESC
+LIMIT 10;</code></pre>
+
+<h3>More <code>find</code> query examples</h3>
+
+<p>Use <code>find</code> for normal document retrieval. It can filter, project fields, sort, skip, and limit results.</p>
+
+<p>Important: <code>find</code> does not group documents. For grouping, use <code>aggregate</code> with <code>$group</code>.</p>
+
+<h4>Exact match</h4>
+
+<p>Find users from Turin.</p>
+
+<pre><code>db.users.find(
+  {
+    city: &quot;Turin&quot;
+  },
+  {
+    _id: 0,
+    username: 1,
+    display_name: 1,
+    city: 1
+  }
+)</code></pre>
+
+<h4>Comparison filter</h4>
+
+<p>Find venues with rating at least <code>4.5</code> and at least <code>200</code> votes.</p>
+
+<pre><code>db.venues.find(
+  {
+    &quot;rating.aggregate_rating&quot;: { $gte: 4.5 },
+    &quot;rating.votes&quot;: { $gte: 200 }
+  },
+  {
+    _id: 0,
+    name: 1,
+    city: 1,
+    category: 1,
+    &quot;rating.aggregate_rating&quot;: 1,
+    &quot;rating.votes&quot;: 1
+  }
+).sort({
+  &quot;rating.votes&quot;: -1
+})</code></pre>
+
+<h4>Array contains value</h4>
+
+<p>Find content that contains the hashtag <code>culture</code>.</p>
+
+<pre><code>db.content.find(
+  {
+    hashtags: &quot;culture&quot;
+  },
+  {
+    _id: 1,
+    author_id: 1,
+    style: 1,
+    hashtags: 1
+  }
+)</code></pre>
+
+<h4>Match one of several values with <code>$in</code></h4>
+
+<p>Find posts whose style is either <code>food</code>, <code>travel</code>, or <code>culture</code>.</p>
+
+<pre><code>db.content.find(
+  {
+    type: &quot;post&quot;,
+    style: {
+      $in: [&quot;food&quot;, &quot;travel&quot;, &quot;culture&quot;]
+    }
+  },
+  {
+    _id: 1,
+    author_id: 1,
+    style: 1,
+    category: 1
+  }
+)</code></pre>
+
+<h4>OR condition with <code>$or</code></h4>
+
+<p>Find venues that are either highly rated or have many votes.</p>
+
+<pre><code>db.venues.find(
+  {
+    $or: [
+      {
+        &quot;rating.aggregate_rating&quot;: { $gte: 4.8 }
+      },
+      {
+        &quot;rating.votes&quot;: { $gte: 500 }
+      }
+    ]
+  },
+  {
+    _id: 0,
+    name: 1,
+    city: 1,
+    &quot;rating.aggregate_rating&quot;: 1,
+    &quot;rating.votes&quot;: 1
+  }
+)</code></pre>
+
+<h4>Array size or existence</h4>
+
+<p>Find users who have at least one recent interaction.</p>
+
+<pre><code>db.users.find(
+  {
+    &quot;recent_interactions.0&quot;: {
+      $exists: true
+    }
+  },
+  {
+    _id: 0,
+    username: 1,
+    city: 1,
+    recent_interactions: 1
+  }
+)</code></pre>
+
+<h4>Date range</h4>
+
+<p>Find relationships created on or after <code>2026-06-01</code>.</p>
+
+<pre><code>db.relationships.find(
+  {
+    created_at: {
+      $gte: new Date(&quot;2026-06-01T00:00:00Z&quot;)
+    }
+  },
+  {
+    _id: 1,
+    type: 1,
+    source_user_id: 1,
+    target_type: 1,
+    target_id: 1,
+    created_at: 1
+  }
+).sort({
+  created_at: -1
+})</code></pre>
+
+<h4>Pagination with <code>skip</code> and <code>limit</code></h4>
+
+<p>Find the second page of food posts, assuming <code>10</code> results per page.</p>
+
+<pre><code>db.content.find(
+  {
+    type: &quot;post&quot;,
+    style: &quot;food&quot;
+  },
+  {
+    _id: 1,
+    author_id: 1,
+    style: 1,
+    &quot;metrics.like_count&quot;: 1
+  }
+).sort({
+  &quot;metrics.like_count&quot;: -1
+}).skip(10).limit(10)</code></pre>
+
+<h3>Filter with <code>$match</code> in an aggregation pipeline</h3>
+
+<p>Use <code>$match</code> when filtering is part of a larger aggregation pipeline.</p>
+
+<p>This example filters venues by city, rating, and vote count.</p>
+
+<pre><code>db.venues.aggregate([
+  {
+    $match: {
+      city: &quot;Makati City&quot;,
+      &quot;rating.aggregate_rating&quot;: { $gte: 4.5 },
+      &quot;rating.votes&quot;: { $gte: 200 }
+    }
+  },
+  {
+    $project: {
+      _id: 0,
+      name: 1,
+      city: 1,
+      category: 1,
+      &quot;rating.aggregate_rating&quot;: 1,
+      &quot;rating.votes&quot;: 1
+    }
+  }
+])</code></pre>
+
+<p>SQL-style idea:</p>
+
+<pre><code>SELECT name, city, category, rating.aggregate_rating, rating.votes
+FROM venues
+WHERE city = &#x27;Makati City&#x27;
+  AND rating.aggregate_rating &gt;= 4.5
+  AND rating.votes &gt;= 200;</code></pre>
+
+<h3>Group with <code>$group</code></h3>
+
+<p>Use <code>$group</code> to group documents and calculate aggregate values such as counts, sums, and averages.</p>
+
+<p>This example groups content by <code>style</code> and calculates the number of posts plus average likes.</p>
+
+<pre><code>db.content.aggregate([
+  {
+    $match: {
+      type: &quot;post&quot;
+    }
+  },
+  {
+    $group: {
+      _id: &quot;$style&quot;,
+      total_posts: { $sum: 1 },
+      average_likes: { $avg: &quot;$metrics.like_count&quot; }
+    }
+  },
+  {
+    $sort: {
+      total_posts: -1
+    }
+  }
+])</code></pre>
+
+<p>SQL-style idea:</p>
+
+<pre><code>SELECT style, COUNT(*) AS total_posts, AVG(metrics.like_count) AS average_likes
+FROM content
+WHERE type = &#x27;post&#x27;
+GROUP BY style
+ORDER BY total_posts DESC;</code></pre>
+
+<h3>Filter first, then group</h3>
+
+<p>In MongoDB aggregation, <code>$match</code> normally comes before <code>$group</code>. This filters the input documents first, then groups only the matching documents.</p>
+
+<p>This example filters recent <code>like</code> relationships for content, then groups them by user.</p>
+
+<pre><code>db.relationships.aggregate([
+  {
+    $match: {
+      type: &quot;like&quot;,
+      target_type: &quot;content&quot;,
+      created_at: {
+        $gte: new Date(&quot;2026-06-01T00:00:00Z&quot;)
+      }
+    }
+  },
+  {
+    $group: {
+      _id: &quot;$source_user_id&quot;,
+      total_likes: { $sum: 1 }
+    }
+  },
+  {
+    $project: {
+      _id: 0,
+      source_user_id: &quot;$_id&quot;,
+      total_likes: 1
+    }
+  },
+  {
+    $sort: {
+      total_likes: -1
+    }
+  }
+])</code></pre>
+
+<p>SQL-style idea:</p>
+
+<pre><code>SELECT source_user_id, COUNT(*) AS total_likes
+FROM relationships
+WHERE type = &#x27;like&#x27;
+  AND target_type = &#x27;content&#x27;
+  AND created_at &gt;= &#x27;2026-06-01T00:00:00Z&#x27;
+GROUP BY source_user_id
+ORDER BY total_likes DESC;</code></pre>
+
+<h2>Question 1 — User activity profile</h2>
+
+<p>Given the <code>users</code> collection:</p>
+
+<pre><code>{
+  &quot;_id&quot;: &quot;user_001&quot;,
+  &quot;username&quot;: &quot;user_001&quot;,
+  &quot;display_name&quot;: &quot;User 0001&quot;,
+  &quot;city&quot;: &quot;Turin&quot;,
+  &quot;interests&quot;: [&quot;pasta&quot;, &quot;museums&quot;, &quot;street_food&quot;],
+  &quot;recent_interactions&quot;: [
+    {
+      &quot;type&quot;: &quot;view&quot;,
+      &quot;content_id&quot;: &quot;content_010&quot;,
+      &quot;created_at&quot;: &quot;2026-06-10T12:30:00Z&quot;
+    }
+  ]
+}</code></pre>
+
+<p>Write a MongoDB query that retrieves all users from the city <code>&quot;Turin&quot;</code> who have at least one recent interaction, and returns only:</p>
+<ul>
+<li><code>username</code></li>
+<li><code>display_name</code></li>
+<li><code>city</code></li>
+<li>the number of recent interactions</li>
+</ul>
+
+<p>Sort the results by number of recent interactions in descending order.</p>
+
+<h3>Answer</h3>
+
+<pre><code>db.users.aggregate([
+  {
+    $match: {
+      city: &quot;Turin&quot;,
+      &quot;recent_interactions.0&quot;: { $exists: true }
+    }
+  },
+  {
+    $project: {
+      _id: 0,
+      username: 1,
+      display_name: 1,
+      city: 1,
+      recent_interactions_count: { $size: &quot;$recent_interactions&quot; }
+    }
+  },
+  {
+    $sort: { recent_interactions_count: -1 }
+  }
+])</code></pre>
+
+<h2>Question 2 — Popular content by style</h2>
+
+<p>Given the <code>content</code> collection:</p>
+
+<pre><code>{
+  &quot;_id&quot;: &quot;content_120&quot;,
+  &quot;type&quot;: &quot;post&quot;,
+  &quot;author_id&quot;: &quot;user_014&quot;,
+  &quot;style&quot;: &quot;food&quot;,
+  &quot;category&quot;: &quot;food&quot;,
+  &quot;hashtags&quot;: [&quot;pasta&quot;, &quot;local&quot;, &quot;restaurant&quot;],
+  &quot;metrics&quot;: {
+    &quot;view_count&quot;: 123,
+    &quot;like_count&quot;: 41,
+    &quot;comment_count&quot;: 8
+  }
+}</code></pre>
+
+<p>Write a MongoDB query that finds the top 10 <code>post</code> documents with:</p>
+<ul>
+<li><code>style = &quot;food&quot;</code></li>
+<li>at least 20 likes</li>
+<li>at least 50 views</li>
+</ul>
+
+<p>Return only:</p>
+<ul>
+<li><code>_id</code></li>
+<li><code>author_id</code></li>
+<li><code>style</code></li>
+<li><code>hashtags</code></li>
+<li><code>metrics.view_count</code></li>
+<li><code>metrics.like_count</code></li>
+</ul>
+
+<p>Sort by <code>metrics.like_count</code> in descending order.</p>
+
+<h3>Answer</h3>
+
+<pre><code>db.content.aggregate([
+  {
+    $match: {
+      type: &quot;post&quot;,
+      style: &quot;food&quot;,
+      &quot;metrics.like_count&quot;: { $gte: 20 },
+      &quot;metrics.view_count&quot;: { $gte: 50 }
+    }
+  },
+  {
+    $sort: { &quot;metrics.like_count&quot;: -1 }
+  },
+  {
+    $limit: 10
+  },
+  {
+    $project: {
+      _id: 1,
+      author_id: 1,
+      style: 1,
+      hashtags: 1,
+      &quot;metrics.view_count&quot;: 1,
+      &quot;metrics.like_count&quot;: 1
+    }
+  }
+])</code></pre>
+
+<h2>Question 3 — Venue engagement</h2>
+
+<p>Given the <code>venues</code> collection:</p>
+
+<pre><code>{
+  &quot;_id&quot;: &quot;restaurant_6317637&quot;,
+  &quot;name&quot;: &quot;Le Petit Souffle&quot;,
+  &quot;city&quot;: &quot;Makati City&quot;,
+  &quot;category&quot;: &quot;French&quot;,
+  &quot;cuisines&quot;: [&quot;French&quot;, &quot;Japanese&quot;, &quot;Desserts&quot;],
+  &quot;rating&quot;: {
+    &quot;aggregate_rating&quot;: 4.8,
+    &quot;votes&quot;: 314
+  }
+}</code></pre>
+
+<p>Write a MongoDB query that retrieves venues that:</p>
+<ul>
+<li>belong to city <code>&quot;Makati City&quot;</code></li>
+<li>have an aggregate rating greater than or equal to <code>4.5</code></li>
+<li>have at least <code>200</code> votes</li>
+</ul>
+
+<p>Return only:</p>
+<ul>
+<li><code>name</code></li>
+<li><code>city</code></li>
+<li><code>category</code></li>
+<li><code>cuisines</code></li>
+<li><code>rating.aggregate_rating</code></li>
+<li><code>rating.votes</code></li>
+</ul>
+
+<p>Sort by <code>rating.votes</code> in descending order.</p>
+
+<h3>Answer</h3>
+
+<pre><code>db.venues.aggregate([
+  {
+    $match: {
+      city: &quot;Makati City&quot;,
+      &quot;rating.aggregate_rating&quot;: { $gte: 4.5 },
+      &quot;rating.votes&quot;: { $gte: 200 }
+    }
+  },
+  {
+    $project: {
+      _id: 0,
+      name: 1,
+      city: 1,
+      category: 1,
+      cuisines: 1,
+      &quot;rating.aggregate_rating&quot;: 1,
+      &quot;rating.votes&quot;: 1
+    }
+  },
+  {
+    $sort: { &quot;rating.votes&quot;: -1 }
+  }
+])</code></pre>
+
+<h2>Question 4 — Relationship analysis</h2>
+
+<p>Given the <code>relationships</code> collection:</p>
+
+<pre><code>{
+  &quot;_id&quot;: &quot;relationship_001&quot;,
+  &quot;type&quot;: &quot;like&quot;,
+  &quot;source_user_id&quot;: &quot;user_003&quot;,
+  &quot;target_type&quot;: &quot;content&quot;,
+  &quot;target_id&quot;: &quot;content_045&quot;,
+  &quot;created_at&quot;: &quot;2026-05-12T09:00:00Z&quot;
+}</code></pre>
+
+<p>Write a MongoDB query that finds the users who created the most <code>like</code> relationships toward content in the last 30 days.</p>
+
+<p>The result must include:</p>
+<ul>
+<li><code>source_user_id</code></li>
+<li>the number of likes created</li>
+</ul>
+
+<p>Sort the users by number of likes in descending order and return only the top 5.</p>
+
+<h3>Answer</h3>
+
+<pre><code>db.relationships.aggregate([
+  {
+    $match: {
+      type: &quot;like&quot;,
+      target_type: &quot;content&quot;,
+      created_at: {
+        $gte: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000)
+      }
+    }
+  },
+  {
+    $group: {
+      _id: &quot;$source_user_id&quot;,
+      total_likes: { $sum: 1 }
+    }
+  },
+  {
+    $sort: {
+      total_likes: -1
+    }
+  },
+  {
+    $limit: 5
+  },
+  {
+    $project: {
+      _id: 0,
+      source_user_id: &quot;$_id&quot;,
+      total_likes: 1
+    }
+  }
+])</code></pre>
+
+<h2>Question 5 — Content overlap in MongoDB</h2>
+
+<p>Given the <code>content</code> collection:</p>
+
+<pre><code>{
+  &quot;_id&quot;: &quot;content_245&quot;,
+  &quot;type&quot;: &quot;post&quot;,
+  &quot;author_id&quot;: &quot;user_020&quot;,
+  &quot;style&quot;: &quot;travel&quot;,
+  &quot;category&quot;: &quot;travel&quot;,
+  &quot;hashtags&quot;: [&quot;city&quot;, &quot;museum&quot;, &quot;culture&quot;, &quot;walk&quot;],
+  &quot;metrics&quot;: {
+    &quot;view_count&quot;: 88,
+    &quot;like_count&quot;: 17,
+    &quot;comment_count&quot;: 4
+  }
+}</code></pre>
+
+<p>Write a MongoDB query that finds all <code>post</code> documents that:</p>
+<ul>
+<li>have <code>style = &quot;travel&quot;</code></li>
+<li>contain the hashtag <code>&quot;culture&quot;</code></li>
+<li>have at least <code>10</code> likes</li>
+</ul>
+
+<p>Return only:</p>
+<ul>
+<li><code>_id</code></li>
+<li><code>author_id</code></li>
+<li><code>style</code></li>
+<li><code>category</code></li>
+<li><code>hashtags</code></li>
+<li><code>metrics.like_count</code></li>
+</ul>
+
+<p>Sort the results by <code>metrics.like_count</code> in descending order and return only the top 8 documents.</p>
+
+<h3>Answer</h3>
+
+<pre><code>db.content.aggregate([
+  {
+    $match: {
+      type: &quot;post&quot;,
+      style: &quot;travel&quot;,
+      hashtags: &quot;culture&quot;,
+      &quot;metrics.like_count&quot;: { $gte: 10 }
+    }
+  },
+  {
+    $sort: { &quot;metrics.like_count&quot;: -1 }
+  },
+  {
+    $limit: 8
+  },
+  {
+    $project: {
+      _id: 1,
+      author_id: 1,
+      style: 1,
+      category: 1,
+      hashtags: 1,
+      &quot;metrics.like_count&quot;: 1
+    }
+  }
+])</code></pre>
+        </section>
+        
+</body>
+</html>

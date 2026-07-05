@@ -1,0 +1,9 @@
+.git
+.kagglehub
+.venv
+__pycache__
+*.pyc
+mongodb_data
+neo4j_data
+neo4j_logs
+data/raw

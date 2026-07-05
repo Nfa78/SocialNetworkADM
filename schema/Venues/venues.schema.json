@@ -1,0 +1,32 @@
+{
+  "$jsonSchema": {
+    "bsonType": "object",
+    "required": ["name", "domain", "category", "city", "created_at"],
+    "properties": {
+      "_id": {
+        "description": "Automatically generated MongoDB ObjectId or custom ID"
+      },
+      "name": {
+        "bsonType": "string",
+        "description": "Name of the venue"
+      },
+      "domain": {
+        "enum": ["gastronomy", "cultural"],
+        "description": "High-level domain of the venue"
+      },
+      "category": {
+        "bsonType": "string",
+        "description": "Specific category such as restaurant, bar, museum, gallery"
+      },
+      "city": {
+        "bsonType": "string",
+        "description": "City where the venue is located"
+      },
+      "created_at": {
+        "bsonType": "date",
+        "description": "Date when the venue document was created"
+      }
+    },
+    "additionalProperties": true
+  }
+}

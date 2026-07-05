@@ -1,0 +1,382 @@
+{
+  "$jsonSchema": {
+    "bsonType": "object",
+    "oneOf": [
+      {
+        "required": ["type", "author_id", "text", "created_at"],
+        "properties": {
+          "_id": {
+            "description": "Automatically generated MongoDB ObjectId or custom ID"
+          },
+          "type": {
+            "enum": ["post"],
+            "description": "Content document type"
+          },
+          "author_id": {
+            "bsonType": ["objectId", "string"],
+            "description": "User who created the post"
+          },
+          "text": {
+            "bsonType": "string",
+            "description": "Post text"
+          },
+          "style": {
+            "enum": ["food", "culture", "travel", "lifestyle", "event", "guide"],
+            "description": "Optional post style used to cluster and relate posts"
+          },
+          "category": {
+            "bsonType": "string",
+            "description": "Optional broader category for the post"
+          },
+          "created_at": {
+            "bsonType": "date",
+            "description": "Date when the post was created"
+          },
+          "venue_id": {
+            "bsonType": ["objectId", "string"],
+            "description": "Optional venue referenced by the post"
+          },
+          "hashtags": {
+            "bsonType": "array",
+            "description": "Hashtags extracted from the post",
+            "items": {
+              "bsonType": "string"
+            }
+          },
+          "source": {
+            "bsonType": "string",
+            "description": "Origin of the content document"
+          },
+          "external_id": {
+            "bsonType": "string",
+            "description": "Original source identifier"
+          },
+          "sentiment": {
+            "bsonType": "object",
+            "description": "Optional sentiment metadata",
+            "properties": {
+              "label": {
+                "enum": ["negative", "neutral", "positive"]
+              },
+              "score": {
+                "bsonType": ["int", "double"]
+              },
+              "polarity": {
+                "bsonType": "int"
+              }
+            },
+            "additionalProperties": true
+          },
+          "location": {
+            "description": "Optional location as a plain label or embedded coordinates",
+            "oneOf": [
+              {
+                "bsonType": "string",
+                "description": "Human-readable location label"
+              },
+              {
+                "bsonType": "object",
+                "properties": {
+                  "label": {
+                    "bsonType": "string",
+                    "description": "Optional human-readable location label"
+                  },
+                  "coordinates": {
+                    "bsonType": "object",
+                    "required": ["latitude", "longitude"],
+                    "properties": {
+                      "latitude": {
+                        "bsonType": ["int", "double"],
+                        "minimum": -90,
+                        "maximum": 90
+                      },
+                      "longitude": {
+                        "bsonType": ["int", "double"],
+                        "minimum": -180,
+                        "maximum": 180
+                      }
+                    }
+                  }
+                },
+                "additionalProperties": true
+              }
+            ]
+          },
+          "metrics": {
+            "bsonType": "object",
+            "description": "Aggregate content counters",
+            "properties": {
+              "view_count": {
+                "bsonType": "int",
+                "minimum": 0
+              },
+              "like_count": {
+                "bsonType": "int",
+                "minimum": 0
+              },
+              "comment_count": {
+                "bsonType": "int",
+                "minimum": 0
+              },
+              "share_count": {
+                "bsonType": "int",
+                "minimum": 0
+              },
+              "last_viewed_at": {
+                "bsonType": "date"
+              }
+            },
+            "additionalProperties": true
+          }
+        }
+      },
+      {
+        "required": ["type", "author_id", "venue_id", "text", "rating", "created_at"],
+        "properties": {
+          "_id": {
+            "description": "Automatically generated MongoDB ObjectId or custom ID"
+          },
+          "type": {
+            "enum": ["review"],
+            "description": "Content document type"
+          },
+          "author_id": {
+            "bsonType": ["objectId", "string"],
+            "description": "User who wrote the review"
+          },
+          "venue_id": {
+            "bsonType": ["objectId", "string"],
+            "description": "Reviewed venue"
+          },
+          "text": {
+            "bsonType": "string",
+            "description": "Review text"
+          },
+          "rating": {
+            "bsonType": ["int", "double"],
+            "minimum": 1,
+            "maximum": 5,
+            "description": "Review rating from 1 to 5"
+          },
+          "created_at": {
+            "bsonType": "date",
+            "description": "Date when the review was created"
+          },
+          "hashtags": {
+            "bsonType": "array",
+            "description": "Hashtags extracted from the review",
+            "items": {
+              "bsonType": "string"
+            }
+          },
+          "source": {
+            "bsonType": "string",
+            "description": "Origin of the content document"
+          },
+          "external_id": {
+            "bsonType": "string",
+            "description": "Original source identifier"
+          },
+          "sentiment": {
+            "bsonType": "object",
+            "description": "Optional sentiment metadata",
+            "properties": {
+              "label": {
+                "enum": ["negative", "neutral", "positive"]
+              },
+              "score": {
+                "bsonType": ["int", "double"]
+              },
+              "polarity": {
+                "bsonType": "int"
+              }
+            },
+            "additionalProperties": true
+          },
+          "location": {
+            "description": "Optional location as a plain label or embedded coordinates",
+            "oneOf": [
+              {
+                "bsonType": "string",
+                "description": "Human-readable location label"
+              },
+              {
+                "bsonType": "object",
+                "properties": {
+                  "label": {
+                    "bsonType": "string",
+                    "description": "Optional human-readable location label"
+                  },
+                  "coordinates": {
+                    "bsonType": "object",
+                    "required": ["latitude", "longitude"],
+                    "properties": {
+                      "latitude": {
+                        "bsonType": ["int", "double"],
+                        "minimum": -90,
+                        "maximum": 90
+                      },
+                      "longitude": {
+                        "bsonType": ["int", "double"],
+                        "minimum": -180,
+                        "maximum": 180
+                      }
+                    }
+                  }
+                },
+                "additionalProperties": true
+              }
+            ]
+          },
+          "metrics": {
+            "bsonType": "object",
+            "description": "Aggregate content counters",
+            "properties": {
+              "view_count": {
+                "bsonType": "int",
+                "minimum": 0
+              },
+              "like_count": {
+                "bsonType": "int",
+                "minimum": 0
+              },
+              "comment_count": {
+                "bsonType": "int",
+                "minimum": 0
+              },
+              "share_count": {
+                "bsonType": "int",
+                "minimum": 0
+              },
+              "last_viewed_at": {
+                "bsonType": "date"
+              }
+            },
+            "additionalProperties": true
+          }
+        }
+      },
+      {
+        "required": ["type", "author_id", "parent_content_id", "text", "created_at"],
+        "properties": {
+          "_id": {
+            "description": "Automatically generated MongoDB ObjectId or custom ID"
+          },
+          "type": {
+            "enum": ["comment"],
+            "description": "Content document type"
+          },
+          "author_id": {
+            "bsonType": ["objectId", "string"],
+            "description": "User who wrote the comment"
+          },
+          "parent_content_id": {
+            "bsonType": ["objectId", "string"],
+            "description": "Post, review, or comment being replied to"
+          },
+          "text": {
+            "bsonType": "string",
+            "description": "Comment text"
+          },
+          "created_at": {
+            "bsonType": "date",
+            "description": "Date when the comment was created"
+          },
+          "hashtags": {
+            "bsonType": "array",
+            "description": "Hashtags extracted from the comment",
+            "items": {
+              "bsonType": "string"
+            }
+          },
+          "source": {
+            "bsonType": "string",
+            "description": "Origin of the content document"
+          },
+          "external_id": {
+            "bsonType": "string",
+            "description": "Original source identifier"
+          },
+          "sentiment": {
+            "bsonType": "object",
+            "description": "Optional sentiment metadata",
+            "properties": {
+              "label": {
+                "enum": ["negative", "neutral", "positive"]
+              },
+              "score": {
+                "bsonType": ["int", "double"]
+              },
+              "polarity": {
+                "bsonType": "int"
+              }
+            },
+            "additionalProperties": true
+          },
+          "location": {
+            "description": "Optional location as a plain label or embedded coordinates",
+            "oneOf": [
+              {
+                "bsonType": "string",
+                "description": "Human-readable location label"
+              },
+              {
+                "bsonType": "object",
+                "properties": {
+                  "label": {
+                    "bsonType": "string",
+                    "description": "Optional human-readable location label"
+                  },
+                  "coordinates": {
+                    "bsonType": "object",
+                    "required": ["latitude", "longitude"],
+                    "properties": {
+                      "latitude": {
+                        "bsonType": ["int", "double"],
+                        "minimum": -90,
+                        "maximum": 90
+                      },
+                      "longitude": {
+                        "bsonType": ["int", "double"],
+                        "minimum": -180,
+                        "maximum": 180
+                      }
+                    }
+                  }
+                },
+                "additionalProperties": true
+              }
+            ]
+          },
+          "metrics": {
+            "bsonType": "object",
+            "description": "Aggregate content counters",
+            "properties": {
+              "view_count": {
+                "bsonType": "int",
+                "minimum": 0
+              },
+              "like_count": {
+                "bsonType": "int",
+                "minimum": 0
+              },
+              "comment_count": {
+                "bsonType": "int",
+                "minimum": 0
+              },
+              "share_count": {
+                "bsonType": "int",
+                "minimum": 0
+              },
+              "last_viewed_at": {
+                "bsonType": "date"
+              }
+            },
+            "additionalProperties": true
+          }
+        }
+      }
+    ],
+    "additionalProperties": true
+  }
+}
