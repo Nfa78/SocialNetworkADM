@@ -41,6 +41,71 @@ services:
       timeout: 10s
       retries: 10
 
+  kafka:
+    image: apache/kafka:3.9.0
+    container_name: social-analytics-kafka
+    restart: unless-stopped
+    ports:
+      - "${KAFKA_PORT:-9094}:9094"
+    environment:
+      KAFKA_NODE_ID: 1
+      KAFKA_PROCESS_ROLES: broker,controller
+      KAFKA_LISTENERS: PLAINTEXT://:9092,CONTROLLER://:9093,HOST://:9094
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092,HOST://localhost:${KAFKA_PORT:-9094}
+      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT,HOST:PLAINTEXT
+      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka:9093
+      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
+      KAFKA_NUM_PARTITIONS: 3
+      KAFKA_LOG_DIRS: /var/lib/kafka/data
+    volumes:
+      - kafka_data:/var/lib/kafka/data
+    healthcheck:
+      test: ["CMD", "/opt/kafka/bin/kafka-topics.sh", "--bootstrap-server", "localhost:9092", "--list"]
+      interval: 10s
+      timeout: 10s
+      retries: 10
+
+  kafka-ui:
+    image: provectuslabs/kafka-ui:latest
+    container_name: social-analytics-kafka-ui
+    restart: unless-stopped
+    depends_on:
+      kafka:
+        condition: service_healthy
+    ports:
+      - "${KAFKA_UI_PORT:-8080}:8080"
+    environment:
+      KAFKA_CLUSTERS_0_NAME: social-analytics-local
+      KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: kafka:9092
+
+  bootstrap:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: social-analytics-bootstrap
+    restart: "no"
+    depends_on:
+      mongodb:
+        condition: service_healthy
+      neo4j:
+        condition: service_healthy
+    environment:
+      MONGO_URI: "mongodb://${MONGO_INITDB_ROOT_USERNAME:-admin}:${MONGO_INITDB_ROOT_PASSWORD:-admin_password}@mongodb:27017/${MONGO_DATABASE:-social_analytics}?authSource=admin"
+      MONGO_DATABASE: ${MONGO_DATABASE:-social_analytics}
+      NEO4J_URI: "bolt://neo4j:7687"
+      NEO4J_USER: ${NEO4J_USER:-neo4j}
+      NEO4J_PASSWORD: ${NEO4J_PASSWORD:-neo4j_password}
+    volumes:
+      - ./schema:/app/schema
+      - ./src:/app/src
+    command: ["sh", "-c", "python -m src.init_mongodb && python -m src.init_neo4j"]
+
   app:
     build:
       context: .
@@ -52,6 +117,8 @@ services:
         condition: service_healthy
       neo4j:
         condition: service_healthy
+      bootstrap:
+        condition: service_completed_successfully
     ports:
       - "${APP_PORT:-8000}:8000"
     environment:
@@ -60,6 +127,10 @@ services:
       NEO4J_URI: "bolt://neo4j:7687"
       NEO4J_USER: ${NEO4J_USER:-neo4j}
       NEO4J_PASSWORD: ${NEO4J_PASSWORD:-neo4j_password}
+      KAFKA_BOOTSTRAP_SERVERS: ${KAFKA_BOOTSTRAP_SERVERS:-kafka:9092}
+      KAFKA_ACTIVITY_TOPIC: ${KAFKA_ACTIVITY_TOPIC:-activity-events}
+      KAFKA_ENABLED: ${KAFKA_ENABLED:-true}
+      KAFKA_SOURCE_SERVICE: ${KAFKA_SOURCE_SERVICE:-social-analytics-api}
     volumes:
       - ./data:/app/data
       - ./schema:/app/schema
@@ -77,6 +148,8 @@ services:
         condition: service_healthy
       neo4j:
         condition: service_healthy
+      bootstrap:
+        condition: service_completed_successfully
     ports:
       - "${DASHBOARD_PORT:-8501}:8501"
     environment:
@@ -97,7 +170,58 @@ services:
         "--server.port=8501",
       ]
 
+  activity-consumer:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: social-analytics-activity-consumer
+    restart: unless-stopped
+    depends_on:
+      mongodb:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+    environment:
+      MONGO_URI: "mongodb://${MONGO_INITDB_ROOT_USERNAME:-admin}:${MONGO_INITDB_ROOT_PASSWORD:-admin_password}@mongodb:27017/${MONGO_DATABASE:-social_analytics}?authSource=admin"
+      MONGO_DATABASE: ${MONGO_DATABASE:-social_analytics}
+      NEO4J_URI: "bolt://neo4j:7687"
+      NEO4J_USER: ${NEO4J_USER:-neo4j}
+      NEO4J_PASSWORD: ${NEO4J_PASSWORD:-neo4j_password}
+      KAFKA_BOOTSTRAP_SERVERS: ${KAFKA_BOOTSTRAP_SERVERS:-kafka:9092}
+      KAFKA_ACTIVITY_TOPIC: ${KAFKA_ACTIVITY_TOPIC:-activity-events}
+      KAFKA_ENABLED: ${KAFKA_ENABLED:-true}
+      KAFKA_SOURCE_SERVICE: ${KAFKA_SOURCE_SERVICE:-social-analytics-api}
+    volumes:
+      - ./src:/app/src
+    command: ["python", "-m", "src.kafka_activity_consumer"]
+
+  simulator:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: social-analytics-realtime-simulator
+    restart: unless-stopped
+    depends_on:
+      app:
+        condition: service_started
+    environment:
+      SIMULATOR_API_BASE_URL: "http://app:8000"
+      SIMULATOR_INTERVAL_SECONDS: ${SIMULATOR_INTERVAL_SECONDS:-3}
+      MONGO_URI: "mongodb://${MONGO_INITDB_ROOT_USERNAME:-admin}:${MONGO_INITDB_ROOT_PASSWORD:-admin_password}@mongodb:27017/${MONGO_DATABASE:-social_analytics}?authSource=admin"
+      MONGO_DATABASE: ${MONGO_DATABASE:-social_analytics}
+      NEO4J_URI: "bolt://neo4j:7687"
+      NEO4J_USER: ${NEO4J_USER:-neo4j}
+      NEO4J_PASSWORD: ${NEO4J_PASSWORD:-neo4j_password}
+      KAFKA_BOOTSTRAP_SERVERS: ${KAFKA_BOOTSTRAP_SERVERS:-kafka:9092}
+      KAFKA_ACTIVITY_TOPIC: ${KAFKA_ACTIVITY_TOPIC:-activity-events}
+      KAFKA_ENABLED: ${KAFKA_ENABLED:-true}
+      KAFKA_SOURCE_SERVICE: ${KAFKA_SOURCE_SERVICE:-social-analytics-api}
+    volumes:
+      - ./src:/app/src
+    command: ["python", "-m", "src.realtime_activity_simulator"]
+
 volumes:
   mongodb_data:
   neo4j_data:
   neo4j_logs:
+  kafka_data:

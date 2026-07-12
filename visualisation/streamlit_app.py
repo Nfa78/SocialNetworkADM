@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from datetime import UTC, date, datetime, time
+from time import perf_counter
 from typing import Any, Callable
 
 import pandas as pd
@@ -18,6 +19,7 @@ from mongo_queries import (
     get_date_bounds,
     get_filter_options,
     get_overview_metrics,
+    hydrate_content_candidates,
     most_active_users,
     most_engaged_venues,
     most_engaged_users,
@@ -35,10 +37,24 @@ from mongo_queries import (
     venue_price_rating_points,
     venue_rating_by_city,
     venues_by_city,
+    viral_content,
+    viral_interactions_over_time,
+    virality_baseline,
     views_by_source,
     views_over_time,
 )
-from neo4j_queries import content_similarity, top_followed_users, top_followed_venues, top_liked_content
+from neo4j_queries import (
+    content_from_followed_authors,
+    content_similarity,
+    recommendations_from_liked_content_graph,
+    recommendations_from_similar_user_likes_graph,
+    recommendations_from_viewed_content_graph,
+    top_creators,
+    top_followed_users,
+    top_followed_venues,
+    top_liked_content,
+    top_viewed_content_graph,
+)
 
 
 st.set_page_config(page_title="Social Analytics Dashboard", layout="wide")
@@ -46,6 +62,18 @@ st.set_page_config(page_title="Social Analytics Dashboard", layout="wide")
 CACHE_TTL_SECONDS = 300
 CONNECTION_CHECK_TTL_SECONDS = 30
 RECOMMENDATION_LIMIT_OPTIONS = [5, 10, 15, 25, 50]
+SLOW_QUERY_LOG_SECONDS = 0.5
+VIRALITY_CONTENT_TYPE_OPTIONS = ["post", "comment"]
+VIRALITY_LIMIT_OPTIONS = [10, 25, 50, 100]
+DASHBOARD_PAGES = [
+    "Overview",
+    "Content",
+    "Engagement",
+    "Virality",
+    "User Feed",
+    "Venues / Location",
+    "Relations",
+]
 
 MONGO_QUERY_FUNCTIONS: dict[str, Callable[..., Any]] = {
     "content_by_style": content_by_style,
@@ -67,6 +95,9 @@ MONGO_QUERY_FUNCTIONS: dict[str, Callable[..., Any]] = {
     "venue_price_rating_points": venue_price_rating_points,
     "venue_rating_by_city": venue_rating_by_city,
     "venues_by_city": venues_by_city,
+    "viral_content": viral_content,
+    "viral_interactions_over_time": viral_interactions_over_time,
+    "virality_baseline": virality_baseline,
     "views_by_source": views_by_source,
     "views_over_time": views_over_time,
 }
@@ -79,28 +110,56 @@ RECOMMENDATION_QUERY_FUNCTIONS: dict[str, Callable[..., list[dict]]] = {
 
 NEO4J_QUERY_FUNCTIONS: dict[str, Callable[..., list[dict]]] = {
     "content_similarity": content_similarity,
+    "top_creators": top_creators,
     "top_followed_users": top_followed_users,
     "top_followed_venues": top_followed_venues,
     "top_liked_content": top_liked_content,
+    "top_viewed_content_graph": top_viewed_content_graph,
+}
+
+GRAPH_RECOMMENDATION_QUERY_FUNCTIONS: dict[str, Callable[..., list[dict]]] = {
+    "content_from_followed_authors": content_from_followed_authors,
+    "recommendations_from_liked_content_graph": recommendations_from_liked_content_graph,
+    "recommendations_from_similar_user_likes_graph": recommendations_from_similar_user_likes_graph,
+    "recommendations_from_viewed_content_graph": recommendations_from_viewed_content_graph,
 }
 
 
 @st.cache_data(show_spinner=False, ttl=CACHE_TTL_SECONDS)
 def cached_date_bounds(database_name: str, _database: Any) -> tuple[datetime | None, datetime | None]:
-    return get_date_bounds(_database)
+    started_at = perf_counter()
+    try:
+        return get_date_bounds(_database)
+    finally:
+        log_query_duration("mongo", "get_date_bounds", started_at)
 
 
 @st.cache_data(show_spinner=False, ttl=CACHE_TTL_SECONDS)
 def cached_filter_options(database_name: str, _database: Any) -> dict[str, list[FilterOption]]:
-    return get_filter_options(_database)
+    started_at = perf_counter()
+    try:
+        return get_filter_options(_database)
+    finally:
+        log_query_duration("mongo", "get_filter_options", started_at)
 
 
 @st.cache_data(show_spinner=False, ttl=CACHE_TTL_SECONDS)
-def cached_mongo_query(query_name: str, database_name: str, _database: Any, filters: DashboardFilters, limit: int | None = None) -> Any:
-    query = MONGO_QUERY_FUNCTIONS[query_name]
-    if limit is None:
-        return query(_database, filters)
-    return query(_database, filters, limit=limit)
+def cached_mongo_query(
+    query_name: str,
+    database_name: str,
+    _database: Any,
+    filters: DashboardFilters,
+    limit: int | None = None,
+    **kwargs: Any,
+) -> Any:
+    started_at = perf_counter()
+    try:
+        query = MONGO_QUERY_FUNCTIONS[query_name]
+        if limit is None:
+            return query(_database, filters, **kwargs)
+        return query(_database, filters, limit=limit, **kwargs)
+    finally:
+        log_query_duration("mongo", query_name, started_at)
 
 
 @st.cache_data(show_spinner=False, ttl=CACHE_TTL_SECONDS)
@@ -113,14 +172,42 @@ def cached_recommendations(
     venue_ids: tuple[Any, ...],
     limit: int,
 ) -> list[dict]:
-    query = RECOMMENDATION_QUERY_FUNCTIONS[query_name]
-    return query(_database, filters, list(user_ids), list(venue_ids), limit=limit)
+    started_at = perf_counter()
+    try:
+        query = RECOMMENDATION_QUERY_FUNCTIONS[query_name]
+        return query(_database, filters, list(user_ids), list(venue_ids), limit=limit)
+    finally:
+        log_query_duration("recommendation", query_name, started_at)
 
 
 @st.cache_data(show_spinner=False, ttl=CACHE_TTL_SECONDS)
 def cached_neo4j_query(query_name: str, _driver: Any, filters: DashboardFilters, limit: int) -> list[dict]:
-    query = NEO4J_QUERY_FUNCTIONS[query_name]
-    return query(_driver, filters, limit=limit)
+    started_at = perf_counter()
+    try:
+        query = NEO4J_QUERY_FUNCTIONS[query_name]
+        return query(_driver, filters, limit=limit)
+    finally:
+        log_query_duration("neo4j", query_name, started_at)
+
+
+@st.cache_data(show_spinner=False, ttl=CACHE_TTL_SECONDS)
+def cached_graph_recommendations(
+    query_name: str,
+    database_name: str,
+    _database: Any,
+    _driver: Any,
+    filters: DashboardFilters,
+    user_ids: tuple[Any, ...],
+    venue_ids: tuple[Any, ...],
+    limit: int,
+) -> list[dict]:
+    started_at = perf_counter()
+    try:
+        query = GRAPH_RECOMMENDATION_QUERY_FUNCTIONS[query_name]
+        graph_rows = query(_driver, filters, list(user_ids), limit=max(limit * 5, limit))
+        return hydrate_content_candidates(_database, filters, graph_rows, list(venue_ids), limit=limit)
+    finally:
+        log_query_duration("graph_recommendation", query_name, started_at)
 
 
 @st.cache_data(show_spinner=False, ttl=CONNECTION_CHECK_TTL_SECONDS)
@@ -135,10 +222,22 @@ def cached_neo4j_connection_check(_driver: Any) -> None:
 
 def rows_frame(rows: list[dict]) -> pd.DataFrame:
     frame = pd.DataFrame(rows)
-    for column in ("date", "created_at"):
+    for column in ("date", "created_at", "first_interaction_at", "last_interaction_at", "last_seen_at", "latest_created_at", "last_viewed_at"):
         if column in frame.columns:
             frame[column] = pd.to_datetime(frame[column])
     return frame
+
+
+def log_query_duration(query_type: str, query_name: str, started_at: float) -> None:
+    elapsed = perf_counter() - started_at
+    if elapsed >= SLOW_QUERY_LOG_SECONDS:
+        print(f"[streamlit-perf] {query_type} {query_name} took {elapsed:.2f}s")
+
+
+def select_dashboard_page() -> str:
+    with st.sidebar:
+        st.header("Navigation")
+        return st.radio("Page", DASHBOARD_PAGES, label_visibility="collapsed")
 
 
 def optional_select(label: str, options: list[FilterOption]) -> str | None:
@@ -167,10 +266,8 @@ def selected_date_bounds(min_value: datetime | None, max_value: datetime | None)
         elif len(selected) == 1:
             start_day = selected[0]
             end_day = max(today, start_day)
-        
         else:
             start_day = end_day = max_day
-        
     else:
         start_day = end_day = selected
 
@@ -242,6 +339,15 @@ def format_rating(value: object) -> str:
         return "n/a"
     try:
         return f"{float(value):.2f}"
+    except (TypeError, ValueError):
+        return "n/a"
+
+
+def format_decimal(value: object, suffix: str = "", decimals: int = 2) -> str:
+    if value is None:
+        return "n/a"
+    try:
+        return f"{float(value):.{decimals}f}{suffix}"
     except (TypeError, ValueError):
         return "n/a"
 
@@ -361,6 +467,35 @@ def recommendation_frame(rows: list[dict]) -> pd.DataFrame:
         "comments",
         "matched_hashtags",
         "created_at",
+        "text",
+    ]
+    return frame[[column for column in columns if column in frame.columns]]
+
+
+def virality_frame(rows: list[dict]) -> pd.DataFrame:
+    frame = add_duration_seconds(rows_frame(rows))
+    if frame.empty:
+        return frame
+
+    for column in ("avg_interactions", "viral_threshold", "avg_unique_viewers", "avg_interactions_for_type", "virality_ratio"):
+        if column in frame.columns:
+            frame[column] = pd.to_numeric(frame[column], errors="coerce").round(2)
+
+    columns = [
+        "content_id",
+        "type",
+        "interaction_count",
+        "virality_ratio",
+        "avg_interactions_for_type",
+        "viral_threshold",
+        "unique_viewer_count",
+        "avg_duration_s",
+        "style",
+        "category",
+        "sentiment",
+        "author_id",
+        "created_at",
+        "last_interaction_at",
         "text",
     ]
     return frame[[column for column in columns if column in frame.columns]]
@@ -541,6 +676,146 @@ def render_engagement(filters: DashboardFilters) -> None:
         )
 
 
+def render_virality(filters: DashboardFilters) -> None:
+    database = st.session_state.database
+
+    if filters.content_type and filters.content_type not in VIRALITY_CONTENT_TYPE_OPTIONS:
+        st.warning("The current virality definition covers posts and comments. Clear the review content-type filter to see viral candidates.")
+        return
+
+    type_options = [filters.content_type] if filters.content_type in VIRALITY_CONTENT_TYPE_OPTIONS else VIRALITY_CONTENT_TYPE_OPTIONS
+    controls = st.columns([1.4, 1, 1, 1, 1])
+    with controls[0]:
+        selected_types = st.multiselect("Content types", type_options, default=type_options)
+    with controls[1]:
+        minimum_interactions = st.number_input("Minimum interactions", min_value=1, max_value=10000, value=20, step=5)
+    with controls[2]:
+        multiplier = st.slider("Average multiplier", min_value=1.0, max_value=10.0, value=3.0, step=0.5)
+    with controls[3]:
+        limit = st.selectbox("Rows", VIRALITY_LIMIT_OPTIONS, index=VIRALITY_LIMIT_OPTIONS.index(25))
+    with controls[4]:
+        trend_count = st.slider("Trend lines", min_value=1, max_value=10, value=5, step=1)
+
+    if not selected_types:
+        st.info("Select at least one content type.")
+        return
+
+    content_types = tuple(selected_types)
+    baseline = cached_mongo_query(
+        "virality_baseline",
+        database.name,
+        database,
+        filters,
+        content_types=content_types,
+        multiplier=float(multiplier),
+    )
+    candidates = cached_mongo_query(
+        "viral_content",
+        database.name,
+        database,
+        filters,
+        limit=int(limit),
+        content_types=content_types,
+        multiplier=float(multiplier),
+        minimum_interactions=int(minimum_interactions),
+    )
+
+    baseline_frame = rows_frame(baseline)
+    for column in ("avg_interactions", "viral_threshold", "avg_unique_viewers"):
+        if column in baseline_frame.columns:
+            baseline_frame[column] = pd.to_numeric(baseline_frame[column], errors="coerce").round(2)
+
+    candidate_frame = virality_frame(candidates)
+
+    def baseline_value(content_type: str, column: str) -> object:
+        if baseline_frame.empty or column not in baseline_frame.columns:
+            return None
+        rows = baseline_frame[baseline_frame["type"] == content_type]
+        if rows.empty:
+            return None
+        return rows.iloc[0][column]
+
+    top_ratio = candidate_frame["virality_ratio"].max() if "virality_ratio" in candidate_frame.columns and not candidate_frame.empty else None
+    top_interactions = candidate_frame["interaction_count"].max() if "interaction_count" in candidate_frame.columns and not candidate_frame.empty else 0
+
+    metrics = st.columns(5)
+    metrics[0].metric("Viral items", format_int(len(candidate_frame)))
+    metrics[1].metric("Top ratio", format_decimal(top_ratio, suffix="x"))
+    metrics[2].metric("Top interactions", format_int(top_interactions))
+    metrics[3].metric("Post avg", format_decimal(baseline_value("post", "avg_interactions")))
+    metrics[4].metric("Comment avg", format_decimal(baseline_value("comment", "avg_interactions")))
+
+    if baseline_frame.empty:
+        st.info("No post or comment interactions for the selected filters.")
+        return
+
+    baseline_columns = [
+        "type",
+        "content_count",
+        "total_interactions",
+        "avg_interactions",
+        "viral_threshold",
+        "max_interactions",
+        "avg_unique_viewers",
+        "last_interaction_at",
+    ]
+    baseline_frame = baseline_frame[[column for column in baseline_columns if column in baseline_frame.columns]]
+
+    left, right = st.columns(2)
+    with left:
+        st.plotly_chart(
+            bar_chart(baseline_frame, "type", "avg_interactions", "Average interactions by type"),
+            use_container_width=True,
+            key="virality_average_interactions",
+        )
+    with right:
+        st.plotly_chart(
+            bar_chart(baseline_frame, "type", "viral_threshold", "Viral threshold by type"),
+            use_container_width=True,
+            key="virality_threshold_by_type",
+        )
+
+    left, right = st.columns([1, 1.6])
+    with left:
+        show_table("Virality baseline", baseline_frame, height=300)
+    with right:
+        show_table("Viral posts and comments", candidate_frame, height=420)
+
+    if candidate_frame.empty or "content_id" not in candidate_frame.columns:
+        st.info("No content meets the current virality criteria.")
+        return
+
+    trend_ids = tuple(candidate_frame["content_id"].dropna().head(int(trend_count)).tolist())
+    trend_frame = rows_frame(
+        cached_mongo_query(
+            "viral_interactions_over_time",
+            database.name,
+            database,
+            filters,
+            content_ids=trend_ids,
+        )
+    )
+    if trend_frame.empty:
+        return
+
+    trend_frame["content_label"] = trend_frame.apply(
+        lambda row: f"{row.get('type', 'content')}:{str(row.get('content_id', ''))[:12]}",
+        axis=1,
+    )
+    st.plotly_chart(
+        line_chart(
+            trend_frame,
+            "date",
+            "interactions",
+            "Viral interactions over time",
+            color="content_label",
+            height=420,
+        ),
+        use_container_width=True,
+        key="virality_interactions_over_time",
+    )
+
+
 def render_user_feed(filters: DashboardFilters) -> None:
     database = st.session_state.database
     users = cached_mongo_query("most_engaged_users", database.name, database, filters, limit=100)
@@ -562,7 +837,7 @@ def render_user_feed(filters: DashboardFilters) -> None:
             selected_user_ids = st.multiselect(
                 "Users",
                 options=user_ids,
-                default=user_ids[:1],
+                default=[],
                 format_func=lambda user_id: labels.get(user_id, str(user_id)),
                 key="feed_user_ids",
             )
@@ -599,45 +874,71 @@ def render_user_feed(filters: DashboardFilters) -> None:
 
     if selected_user_ids:
         st.divider()
-        render_recommendation_section(
-            "Posts Similar to Previously Liked Content",
-            "liked_content_recommendations",
-            lambda limit: cached_recommendations(
-                "recommendations_from_liked_content",
+
+        def feed_recommendations(graph_query_name: str, mongo_query_name: str, limit: int) -> list[dict]:
+            if st.session_state.neo4j_available:
+                return cached_graph_recommendations(
+                    graph_query_name,
+                    database.name,
+                    database,
+                    st.session_state.neo4j_driver,
+                    filters,
+                    tuple(selected_user_ids),
+                    tuple(selected_venue_ids),
+                    limit,
+                )
+            return cached_recommendations(
+                mongo_query_name,
                 database.name,
                 database,
                 filters,
                 tuple(selected_user_ids),
                 tuple(selected_venue_ids),
+                limit,
+            )
+
+        render_recommendation_section(
+            "Posts Similar to Previously Liked Content",
+            "liked_content_recommendations",
+            lambda limit: feed_recommendations(
+                "recommendations_from_liked_content_graph",
+                "recommendations_from_liked_content",
                 limit,
             ),
         )
         render_recommendation_section(
             "Posts Similar to Previously Engaged Content",
             "engaged_content_recommendations",
-            lambda limit: cached_recommendations(
+            lambda limit: feed_recommendations(
+                "recommendations_from_viewed_content_graph",
                 "recommendations_from_engaged_content",
-                database.name,
-                database,
-                filters,
-                tuple(selected_user_ids),
-                tuple(selected_venue_ids),
                 limit,
             ),
         )
         render_recommendation_section(
             "Posts Liked by Similar Users",
             "similar_user_like_recommendations",
-            lambda limit: cached_recommendations(
+            lambda limit: feed_recommendations(
+                "recommendations_from_similar_user_likes_graph",
                 "recommendations_from_similar_user_likes",
-                database.name,
-                database,
-                filters,
-                tuple(selected_user_ids),
-                tuple(selected_venue_ids),
                 limit,
             ),
         )
+        if st.session_state.neo4j_available:
+            render_recommendation_section(
+                "Content From Followed Authors",
+                "graph_followed_author_recommendations",
+                lambda limit: cached_graph_recommendations(
+                    "content_from_followed_authors",
+                    database.name,
+                    database,
+                    st.session_state.neo4j_driver,
+                    filters,
+                    tuple(selected_user_ids),
+                    tuple(selected_venue_ids),
+                    limit,
+                ),
+            )
     elif not users_frame.empty:
         st.info("Select one or more users to fetch recommendations.")
 
@@ -735,6 +1036,23 @@ def render_relations(filters: DashboardFilters) -> None:
 
         left, right = st.columns(2)
         with left:
+            creators = neo4j_frame("top_creators", filters)
+            st.plotly_chart(
+                bar_chart(creators, "created_content", "user_id", "Top creators", orientation="h"),
+                use_container_width=True,
+                key="relations_top_creators",
+            )
+        with right:
+            graph_viewed = neo4j_frame("top_viewed_content_graph", filters)
+            st.plotly_chart(
+                bar_chart(graph_viewed, "views", "content_id", "Top graph-viewed content", orientation="h"),
+                use_container_width=True,
+                key="relations_top_graph_viewed_content",
+            )
+            show_table("Graph-viewed content details", add_duration_seconds(graph_viewed))
+
+        left, right = st.columns(2)
+        with left:
             liked_content = neo4j_frame("top_liked_content", filters)
             st.plotly_chart(
                 bar_chart(liked_content, "likes", "content_id", "Top liked content", orientation="h"),
@@ -746,6 +1064,19 @@ def render_relations(filters: DashboardFilters) -> None:
             show_table("Strongest content similarity", neo4j_frame("content_similarity", filters, limit=50))
     except Exception as exc:
         st.warning(f"Neo4j query failed: {exc}")
+
+
+def render_dashboard_page(page: str, filters: DashboardFilters) -> None:
+    renderers: dict[str, Callable[[DashboardFilters], None]] = {
+        "Overview": render_overview,
+        "Content": render_content,
+        "Engagement": render_engagement,
+        "Virality": render_virality,
+        "User Feed": render_user_feed,
+        "Venues / Location": render_venues,
+        "Relations": render_relations,
+    }
+    renderers[page](filters)
 
 
 def main() -> None:
@@ -768,24 +1099,9 @@ def main() -> None:
         st.session_state.neo4j_driver = None
         st.session_state.neo4j_available = False
 
+    page = select_dashboard_page()
     filters = build_filters()
-
-    overview_tab, content_tab, engagement_tab, user_feed_tab, venues_tab, relations_tab = st.tabs(
-        ["Overview", "Content", "Engagement", "User Feed", "Venues / Location", "Relations"]
-    )
-
-    with overview_tab:
-        render_overview(filters)
-    with content_tab:
-        render_content(filters)
-    with engagement_tab:
-        render_engagement(filters)
-    with user_feed_tab:
-        render_user_feed(filters)
-    with venues_tab:
-        render_venues(filters)
-    with relations_tab:
-        render_relations(filters)
+    render_dashboard_page(page, filters)
 
 
 if __name__ == "__main__":

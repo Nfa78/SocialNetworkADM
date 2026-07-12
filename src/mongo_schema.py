@@ -57,6 +57,10 @@ COLLECTION_INDEXES = {
     "interactions": [
         IndexModel([("created_at", ASCENDING)], name="interactions_created_at_idx"),
         IndexModel([("source", ASCENDING), ("created_at", ASCENDING)], name="interactions_source_created_at_idx"),
+        IndexModel(
+            [("created_at", ASCENDING), ("content_id", ASCENDING), ("source", ASCENDING)],
+            name="interactions_created_content_source_idx",
+        ),
         IndexModel([("content_id", ASCENDING), ("created_at", ASCENDING)], name="interactions_content_created_at_idx"),
         IndexModel([("user_id", ASCENDING), ("created_at", ASCENDING)], name="interactions_user_created_at_idx"),
         IndexModel(
@@ -68,6 +72,14 @@ COLLECTION_INDEXES = {
     "relationships": [
         IndexModel([("created_at", ASCENDING)], name="relationships_created_at_idx"),
         IndexModel([("type", ASCENDING), ("created_at", ASCENDING)], name="relationships_type_created_at_idx"),
+        IndexModel(
+            [("source_user_id", ASCENDING), ("created_at", ASCENDING)],
+            name="relationships_source_user_created_at_idx",
+        ),
+        IndexModel(
+            [("target_type", ASCENDING), ("target_id", ASCENDING), ("created_at", ASCENDING)],
+            name="relationships_target_created_at_idx",
+        ),
         IndexModel(
             [
                 ("type", ASCENDING),

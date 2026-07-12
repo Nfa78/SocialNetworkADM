@@ -8,6 +8,7 @@ from pydantic import Field
 from src.bootstrap import bootstrap
 from src.db import close_connections, mongo_db, neo4j_session
 from src.domain.models import ActivityEventCreate, ContentCreate, InteractionCreate, RelationshipCreate, UserCreate
+from src.event_streaming import close_activity_event_producer
 from src.services.activity_service import ActivityService
 from src.services.content_service import ContentService
 from src.services.interaction_service import InteractionService
@@ -19,6 +20,7 @@ app = FastAPI(title="Social Network Analytics Platform")
 
 @app.on_event("shutdown")
 def shutdown() -> None:
+    close_activity_event_producer()
     close_connections()
 
 

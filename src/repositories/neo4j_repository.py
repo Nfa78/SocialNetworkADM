@@ -1,8 +1,8 @@
 from typing import Any
 
 from src.db import neo4j_session
-from src.domain.enums import RelationshipTargetType, RelationshipType
-from src.domain.models import ContentDocument, RelationshipDocument
+from src.domain.enums import InteractionType, RelationshipTargetType, RelationshipType
+from src.domain.models import ContentDocument, InteractionDocument, RelationshipDocument
 
 
 class Neo4jRepository:
@@ -48,6 +48,23 @@ class Neo4jRepository:
                 """,
                 content_id=content.id,
                 properties=properties,
+            )
+        self.project_created_edge(content)
+
+    def project_created_edge(self, content: ContentDocument) -> None:
+        with neo4j_session() as session:
+            session.run(
+                """
+                MERGE (author:User {id: $author_id})
+                MERGE (content:Content {id: $content_id})
+                MERGE (author)-[rel:CREATED]->(content)
+                SET rel.created_at = $created_at,
+                    rel.content_type = $content_type
+                """,
+                author_id=content.author_id,
+                content_id=content.id,
+                created_at=content.created_at.isoformat(),
+                content_type=content.type,
             )
 
     def project_venue(self, venue: dict[str, Any]) -> None:
@@ -123,6 +140,79 @@ class Neo4jRepository:
                 score=score,
                 reason=reason,
                 shared_hashtags=shared_hashtags,
+            )
+
+    def project_viewed_interaction(self, interaction: InteractionDocument) -> None:
+        if interaction.type != InteractionType.VIEW or interaction.user_id is None:
+            return
+
+        with neo4j_session() as session:
+            session.run(
+                """
+                MERGE (viewer:User {id: $user_id})
+                MERGE (content:Content {id: $content_id})
+                MERGE (viewer)-[rel:VIEWED]->(content)
+                ON CREATE SET
+                    rel.count = 1,
+                    rel.first_viewed_at = $created_at,
+                    rel.last_viewed_at = $created_at,
+                    rel.total_duration_ms = coalesce($duration_ms, 0),
+                    rel.last_source = $source
+                ON MATCH SET
+                    rel.count = coalesce(rel.count, 0) + 1,
+                    rel.first_viewed_at = CASE
+                        WHEN rel.first_viewed_at IS NULL OR $created_at < rel.first_viewed_at
+                        THEN $created_at
+                        ELSE rel.first_viewed_at
+                    END,
+                    rel.last_viewed_at = CASE
+                        WHEN rel.last_viewed_at IS NULL OR $created_at > rel.last_viewed_at
+                        THEN $created_at
+                        ELSE rel.last_viewed_at
+                    END,
+                    rel.total_duration_ms = coalesce(rel.total_duration_ms, 0) + coalesce($duration_ms, 0),
+                    rel.last_source = CASE
+                        WHEN rel.last_viewed_at IS NULL OR $created_at >= rel.last_viewed_at
+                        THEN $source
+                        ELSE rel.last_source
+                    END
+                """,
+                user_id=interaction.user_id,
+                content_id=interaction.content_id,
+                created_at=interaction.created_at.isoformat(),
+                duration_ms=interaction.duration_ms,
+                source=interaction.source,
+            )
+
+    def project_viewed_summary(
+        self,
+        user_id: str,
+        content_id: str,
+        count: int,
+        first_viewed_at: str,
+        last_viewed_at: str,
+        total_duration_ms: int,
+        last_source: str | None,
+    ) -> None:
+        with neo4j_session() as session:
+            session.run(
+                """
+                MERGE (viewer:User {id: $user_id})
+                MERGE (content:Content {id: $content_id})
+                MERGE (viewer)-[rel:VIEWED]->(content)
+                SET rel.count = $count,
+                    rel.first_viewed_at = $first_viewed_at,
+                    rel.last_viewed_at = $last_viewed_at,
+                    rel.total_duration_ms = $total_duration_ms,
+                    rel.last_source = $last_source
+                """,
+                user_id=user_id,
+                content_id=content_id,
+                count=count,
+                first_viewed_at=first_viewed_at,
+                last_viewed_at=last_viewed_at,
+                total_duration_ms=total_duration_ms,
+                last_source=last_source,
             )
 
     def project_relationship(self, relationship: RelationshipDocument) -> None:

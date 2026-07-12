@@ -38,3 +38,5 @@ docs/combined_exercises.pdf
 .ipynb_checkpoints/
 .DS_Store
 Thumbs.db
+
+docs/*

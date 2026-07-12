@@ -25,6 +25,9 @@ class FilterOption:
     relevance: int
 
 
+VIRALITY_CONTENT_TYPES = ("post", "comment")
+
+
 def _clean_values(values: list[Any]) -> list[str]:
     return sorted({str(value).strip() for value in values if str(value).strip()})
 
@@ -70,52 +73,12 @@ def _city_filter_options(database: Database[dict[str, Any]]) -> list[FilterOptio
     scores: dict[str, int] = {}
     _add_collection_field_counts(database, scores, "users", "city")
     _add_collection_field_counts(database, scores, "venues", "city")
-
-    content_rows = _aggregate(
-        database,
-        "content",
-        [
-            {"$lookup": {"from": "venues", "localField": "venue_id", "foreignField": "_id", "as": "venue"}},
-            {"$unwind": "$venue"},
-            {"$group": {"_id": "$venue.city", "count": {"$sum": 1}}},
-        ],
-    )
-    for row in content_rows:
-        _add_relevance_score(scores, row.get("_id"), row.get("count"))
-
-    interaction_rows = _aggregate(
-        database,
-        "interactions",
-        [
-            {"$lookup": {"from": "content", "localField": "content_id", "foreignField": "_id", "as": "content_doc"}},
-            {"$unwind": "$content_doc"},
-            {"$lookup": {"from": "venues", "localField": "content_doc.venue_id", "foreignField": "_id", "as": "venue"}},
-            {"$unwind": "$venue"},
-            {"$group": {"_id": "$venue.city", "count": {"$sum": 1}}},
-        ],
-    )
-    for row in interaction_rows:
-        _add_relevance_score(scores, row.get("_id"), row.get("count"))
-
     return _ranked_filter_options(scores)
 
 
 def _content_attribute_filter_options(database: Database[dict[str, Any]], field: str) -> list[FilterOption]:
     scores: dict[str, int] = {}
     _add_collection_field_counts(database, scores, "content", field)
-
-    interaction_rows = _aggregate(
-        database,
-        "interactions",
-        [
-            {"$lookup": {"from": "content", "localField": "content_id", "foreignField": "_id", "as": "content_doc"}},
-            {"$unwind": "$content_doc"},
-            {"$group": {"_id": f"$content_doc.{field}", "count": {"$sum": 1}}},
-        ],
-    )
-    for row in interaction_rows:
-        _add_relevance_score(scores, row.get("_id"), row.get("count"))
-
     return _ranked_filter_options(scores)
 
 
@@ -149,6 +112,20 @@ def _content_attribute_match(filters: DashboardFilters, prefix: str = "") -> dic
     if filters.sentiment:
         match[f"{prefix}sentiment.label"] = filters.sentiment
     return match
+
+
+def _virality_content_types(filters: DashboardFilters, content_types: tuple[str, ...] | None = None) -> tuple[str, ...]:
+    allowed = set(VIRALITY_CONTENT_TYPES)
+    selected = tuple(content_type for content_type in (content_types or VIRALITY_CONTENT_TYPES) if content_type in allowed)
+
+    if filters.content_type:
+        if filters.content_type not in allowed:
+            return ()
+        if selected and filters.content_type not in selected:
+            return ()
+        return (filters.content_type,)
+
+    return selected
 
 
 def _content_pipeline_prefix(filters: DashboardFilters) -> list[dict[str, Any]]:
@@ -448,6 +425,87 @@ def _profile_candidate_recommendations(
     return _aggregate(database, "content", pipeline)
 
 
+def hydrate_content_candidates(
+    database: Database[dict[str, Any]],
+    filters: DashboardFilters,
+    graph_rows: list[dict[str, Any]],
+    venue_ids: list[Any] | None = None,
+    limit: int = 15,
+) -> list[dict[str, Any]]:
+    if not graph_rows:
+        return []
+
+    graph_by_content_id: dict[Any, dict[str, Any]] = {}
+    ordered_content_ids: list[Any] = []
+    for row in graph_rows:
+        content_id = row.get("content_id")
+        if not content_id or content_id in graph_by_content_id:
+            continue
+        graph_by_content_id[content_id] = row
+        ordered_content_ids.append(content_id)
+
+    if not ordered_content_ids:
+        return []
+
+    candidate_match: dict[str, Any] = {"_id": {"$in": ordered_content_ids}}
+    selected_venue_ids = _non_empty(venue_ids or [])
+    if selected_venue_ids:
+        candidate_match["venue_id"] = {"$in": selected_venue_ids}
+
+    rows = _aggregate(
+        database,
+        "content",
+        [
+            *_content_pipeline_prefix(filters),
+            {"$match": candidate_match},
+            {"$lookup": {"from": "venues", "localField": "venue_id", "foreignField": "_id", "as": "venue"}},
+            {"$unwind": {"path": "$venue", "preserveNullAndEmptyArrays": True}},
+            {
+                "$project": {
+                    "_id": 0,
+                    "content_id": "$_id",
+                    "type": 1,
+                    "style": 1,
+                    "category": 1,
+                    "sentiment": "$sentiment.label",
+                    "venue_id": 1,
+                    "venue_name": "$venue.name",
+                    "city": "$venue.city",
+                    "author_id": 1,
+                    "created_at": 1,
+                    "views": {"$ifNull": ["$metrics.view_count", 0]},
+                    "likes": {"$ifNull": ["$metrics.like_count", 0]},
+                    "comments": {"$ifNull": ["$metrics.comment_count", 0]},
+                    "text": {"$substrCP": [{"$ifNull": ["$text", ""]}, 0, 180]},
+                }
+            },
+        ],
+    )
+
+    order = {content_id: index for index, content_id in enumerate(ordered_content_ids)}
+    hydrated_rows: list[dict[str, Any]] = []
+    for row in rows:
+        graph_row = graph_by_content_id.get(row.get("content_id"), {})
+        row.update(
+            {
+                key: value
+                for key, value in graph_row.items()
+                if key in {
+                    "score",
+                    "based_on_count",
+                    "based_on_content_ids",
+                    "author_username",
+                    "recommendation_source",
+                    "similar_user_count",
+                }
+            }
+        )
+        hydrated_rows.append(row)
+
+    hydrated_rows.sort(key=lambda row: order.get(row.get("content_id"), len(order)))
+    return hydrated_rows[:limit]
+
+
 def get_date_bounds(database: Database[dict[str, Any]]) -> tuple[datetime | None, datetime | None]:
     min_date: datetime | None = None
     max_date: datetime | None = None
@@ -643,6 +701,200 @@ def top_content(database: Database[dict[str, Any]], filters: DashboardFilters, l
             },
             {"$sort": {"views": -1, "likes": -1, "comments": -1}},
             {"$limit": limit},
+        ],
+    )
+
+
+def virality_baseline(
+    database: Database[dict[str, Any]],
+    filters: DashboardFilters,
+    content_types: tuple[str, ...] | None = None,
+    multiplier: float = 3.0,
+) -> list[dict[str, Any]]:
+    selected_types = _virality_content_types(filters, content_types)
+    if not selected_types:
+        return []
+
+    return _aggregate(
+        database,
+        "interactions",
+        [
+            *_interaction_pipeline_prefix(filters),
+            {"$match": {"content_id": {"$exists": True, "$ne": None}}},
+            {
+                "$group": {
+                    "_id": "$content_id",
+                    "interaction_count": {"$sum": 1},
+                    "unique_viewers": {"$addToSet": "$user_id"},
+                    "last_interaction_at": {"$max": "$created_at"},
+                }
+            },
+            {"$lookup": {"from": "content", "localField": "_id", "foreignField": "_id", "as": "content"}},
+            {"$unwind": "$content"},
+            {"$match": {"content.type": {"$in": list(selected_types)}}},
+            {
+                "$addFields": {
+                    "unique_viewer_count": {
+                        "$size": {"$setDifference": ["$unique_viewers", [None]]}
+                    }
+                }
+            },
+            {
+                "$group": {
+                    "_id": "$content.type",
+                    "content_count": {"$sum": 1},
+                    "total_interactions": {"$sum": "$interaction_count"},
+                    "avg_interactions": {"$avg": "$interaction_count"},
+                    "max_interactions": {"$max": "$interaction_count"},
+                    "avg_unique_viewers": {"$avg": "$unique_viewer_count"},
+                    "last_interaction_at": {"$max": "$last_interaction_at"},
+                }
+            },
+            {
+                "$project": {
+                    "_id": 0,
+                    "type": "$_id",
+                    "content_count": 1,
+                    "total_interactions": 1,
+                    "avg_interactions": 1,
+                    "viral_threshold": {"$multiply": ["$avg_interactions", multiplier]},
+                    "max_interactions": 1,
+                    "avg_unique_viewers": 1,
+                    "last_interaction_at": 1,
+                }
+            },
+            {"$sort": {"type": 1}},
+        ],
+    )
+
+
+def viral_content(
+    database: Database[dict[str, Any]],
+    filters: DashboardFilters,
+    content_types: tuple[str, ...] | None = None,
+    multiplier: float = 3.0,
+    minimum_interactions: int = 20,
+    limit: int = 25,
+) -> list[dict[str, Any]]:
+    selected_types = _virality_content_types(filters, content_types)
+    if not selected_types:
+        return []
+
+    return _aggregate(
+        database,
+        "interactions",
+        [
+            *_interaction_pipeline_prefix(filters),
+            {"$match": {"content_id": {"$exists": True, "$ne": None}}},
+            {
+                "$group": {
+                    "_id": "$content_id",
+                    "interaction_count": {"$sum": 1},
+                    "unique_viewers": {"$addToSet": "$user_id"},
+                    "avg_duration_ms": {"$avg": "$duration_ms"},
+                    "last_interaction_at": {"$max": "$created_at"},
+                    "first_interaction_at": {"$min": "$created_at"},
+                }
+            },
+            {"$lookup": {"from": "content", "localField": "_id", "foreignField": "_id", "as": "content"}},
+            {"$unwind": "$content"},
+            {"$match": {"content.type": {"$in": list(selected_types)}}},
+            {
+                "$setWindowFields": {
+                    "partitionBy": "$content.type",
+                    "output": {
+                        "avg_interactions_for_type": {"$avg": "$interaction_count"},
+                    },
+                }
+            },
+            {
+                "$addFields": {
+                    "viral_threshold": {"$multiply": ["$avg_interactions_for_type", multiplier]},
+                    "virality_ratio": {
+                        "$cond": [
+                            {"$gt": ["$avg_interactions_for_type", 0]},
+                            {"$divide": ["$interaction_count", "$avg_interactions_for_type"]},
+                            0,
+                        ]
+                    },
+                    "unique_viewer_count": {
+                        "$size": {"$setDifference": ["$unique_viewers", [None]]}
+                    },
+                }
+            },
+            {
+                "$match": {
+                    "interaction_count": {"$gte": minimum_interactions},
+                    "$expr": {"$gte": ["$interaction_count", "$viral_threshold"]},
+                }
+            },
+            {
+                "$project": {
+                    "_id": 0,
+                    "content_id": "$_id",
+                    "type": "$content.type",
+                    "style": "$content.style",
+                    "category": "$content.category",
+                    "sentiment": "$content.sentiment.label",
+                    "author_id": "$content.author_id",
+                    "venue_id": "$content.venue_id",
+                    "interaction_count": 1,
+                    "unique_viewer_count": 1,
+                    "avg_duration_ms": 1,
+                    "avg_interactions_for_type": 1,
+                    "viral_threshold": 1,
+                    "virality_ratio": 1,
+                    "created_at": "$content.created_at",
+                    "first_interaction_at": 1,
+                    "last_interaction_at": 1,
+                    "text": {"$substrCP": [{"$ifNull": ["$content.text", ""]}, 0, 180]},
+                }
+            },
+            {"$sort": {"virality_ratio": -1, "interaction_count": -1, "last_interaction_at": -1}},
+            {"$limit": limit},
+        ],
+    )
+
+
+def viral_interactions_over_time(
+    database: Database[dict[str, Any]],
+    filters: DashboardFilters,
+    content_ids: tuple[Any, ...],
+) -> list[dict[str, Any]]:
+    if not content_ids:
+        return []
+
+    return _aggregate(
+        database,
+        "interactions",
+        [
+            *_interaction_pipeline_prefix(filters),
+            {"$match": {"content_id": {"$in": list(content_ids)}}},
+            {
+                "$group": {
+                    "_id": {
+                        "date": {"$dateTrunc": {"date": "$created_at", "unit": "day"}},
+                        "content_id": "$content_id",
+                    },
+                    "interactions": {"$sum": 1},
+                    "unique_viewers": {"$addToSet": "$user_id"},
+                }
+            },
+            {"$lookup": {"from": "content", "localField": "_id.content_id", "foreignField": "_id", "as": "content"}},
+            {"$unwind": {"path": "$content", "preserveNullAndEmptyArrays": True}},
+            {
+                "$project": {
+                    "_id": 0,
+                    "date": "$_id.date",
+                    "content_id": "$_id.content_id",
+                    "type": "$content.type",
+                    "interactions": 1,
+                    "unique_viewer_count": {
+                        "$size": {"$setDifference": ["$unique_viewers", [None]]}
+                    },
+                }
+            },
+            {"$sort": {"date": 1, "interactions": -1}},
         ],
     )
 
@@ -1042,7 +1294,7 @@ def venue_rating_by_city(database: Database[dict[str, Any]], filters: DashboardF
     )
 
 
-def venue_price_rating_points(database: Database[dict[str, Any]], filters: DashboardFilters, limit: int = 2000) -> list[dict[str, Any]]:
+def venue_price_rating_points(database: Database[dict[str, Any]], filters: DashboardFilters, limit: int = 500) -> list[dict[str, Any]]:
     return _aggregate(
         database,
         "venues",
@@ -1073,7 +1325,7 @@ def venue_price_rating_points(database: Database[dict[str, Any]], filters: Dashb
     )
 
 
-def venue_map_points(database: Database[dict[str, Any]], filters: DashboardFilters, limit: int = 2000) -> list[dict[str, Any]]:
+def venue_map_points(database: Database[dict[str, Any]], filters: DashboardFilters, limit: int = 500) -> list[dict[str, Any]]:
     return _aggregate(
         database,
         "venues",

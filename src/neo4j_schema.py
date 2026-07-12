@@ -16,6 +16,10 @@ NEO4J_INDEX_STATEMENTS = {
     "content_venue_idx": "CREATE INDEX content_venue_idx IF NOT EXISTS FOR (node:Content) ON (node.venue_id)",
     "follows_created_at_idx": "CREATE INDEX follows_created_at_idx IF NOT EXISTS FOR ()-[rel:FOLLOWS]-() ON (rel.created_at)",
     "liked_created_at_idx": "CREATE INDEX liked_created_at_idx IF NOT EXISTS FOR ()-[rel:LIKED]-() ON (rel.created_at)",
+    "created_created_at_idx": "CREATE INDEX created_created_at_idx IF NOT EXISTS FOR ()-[rel:CREATED]-() ON (rel.created_at)",
+    "created_content_type_idx": "CREATE INDEX created_content_type_idx IF NOT EXISTS FOR ()-[rel:CREATED]-() ON (rel.content_type)",
+    "viewed_last_viewed_at_idx": "CREATE INDEX viewed_last_viewed_at_idx IF NOT EXISTS FOR ()-[rel:VIEWED]-() ON (rel.last_viewed_at)",
+    "viewed_count_idx": "CREATE INDEX viewed_count_idx IF NOT EXISTS FOR ()-[rel:VIEWED]-() ON (rel.count)",
     "similar_score_idx": "CREATE INDEX similar_score_idx IF NOT EXISTS FOR ()-[rel:SIMILAR_TO]-() ON (rel.score)",
 }
 
