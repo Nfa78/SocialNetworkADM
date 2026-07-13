@@ -74,6 +74,15 @@ DASHBOARD_PAGES = [
     "Venues / Location",
     "Relations",
 ]
+FILTER_WIDGET_KEYS = (
+    "filter_date_range",
+    "filter_city",
+    "filter_content_type",
+    "filter_style",
+    "filter_category",
+    "filter_sentiment",
+    "filter_interaction_source",
+)
 
 MONGO_QUERY_FUNCTIONS: dict[str, Callable[..., Any]] = {
     "content_by_style": content_by_style,
@@ -240,7 +249,7 @@ def select_dashboard_page() -> str:
         return st.radio("Page", DASHBOARD_PAGES, label_visibility="collapsed")
 
 
-def optional_select(label: str, options: list[FilterOption]) -> str | None:
+def optional_select(label: str, options: list[FilterOption], key: str) -> str | None:
     labels = {option.value: f"{option.value} [{format_int(option.relevance)}]" for option in options}
     values = [option.value for option in options]
 
@@ -248,6 +257,7 @@ def optional_select(label: str, options: list[FilterOption]) -> str | None:
         label,
         [None, *values],
         format_func=lambda value: "All" if value is None else labels.get(value, str(value)),
+        key=key,
     )
     return selected
 
@@ -259,7 +269,13 @@ def selected_date_bounds(min_value: datetime | None, max_value: datetime | None)
     if min_day > max_day:
         min_day = max_day
 
-    selected = st.sidebar.date_input("Date range", value=(min_day, max_day), min_value=min_day, max_value=max_day)
+    selected = st.sidebar.date_input(
+        "Date range",
+        value=(min_day, max_day),
+        min_value=min_day,
+        max_value=max_day,
+        key="filter_date_range",
+    )
     if isinstance(selected, tuple):
         if len(selected) == 2:
             start_day, end_day = selected
@@ -281,20 +297,29 @@ def build_filters() -> DashboardFilters:
 
     with st.sidebar:
         st.header("Filters")
-        if st.button("Refresh data"):
+        action_columns = st.columns(2)
+        if action_columns[0].button("Refresh data", use_container_width=True):
             st.cache_data.clear()
+        if action_columns[1].button("Reset filters", use_container_width=True):
+            for key in FILTER_WIDGET_KEYS:
+                st.session_state.pop(key, None)
+            st.rerun()
 
     min_date, max_date = cached_date_bounds(database.name, database)
     options = cached_filter_options(database.name, database)
 
     with st.sidebar:
         start, end = selected_date_bounds(min_date, max_date)
-        city = optional_select("City", options["cities"])
-        content_type = optional_select("Content type", options["content_types"])
-        style = optional_select("Content style", options["styles"])
-        category = optional_select("Content category", options["categories"])
-        sentiment = optional_select("Sentiment", options["sentiments"])
-        interaction_source = optional_select("Interaction source", options["interaction_sources"])
+        city = optional_select("City", options["cities"], key="filter_city")
+        content_type = optional_select("Content type", options["content_types"], key="filter_content_type")
+        style = optional_select("Content style", options["styles"], key="filter_style")
+        category = optional_select("Content category", options["categories"], key="filter_category")
+        sentiment = optional_select("Sentiment", options["sentiments"], key="filter_sentiment")
+        interaction_source = optional_select(
+            "Interaction source",
+            options["interaction_sources"],
+            key="filter_interaction_source",
+        )
 
     return DashboardFilters(
         start=start,
